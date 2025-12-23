@@ -108,6 +108,36 @@ export default function Dashboard() {
     ? Math.round((user.totalCorrect / user.totalAnswered) * 100) 
     : 0;
 
+  const getLevelProgress = () => {
+    if (user.currentLevel === 'advanced') {
+      return { progress: 100, nextLevel: null, needed: 0 };
+    }
+    if (user.currentLevel === 'intermediate') {
+      const target = 90;
+      const minQuestions = 6;
+      const questionsNeeded = Math.max(0, minQuestions - user.totalAnswered);
+      const accuracyNeeded = Math.max(0, target - accuracy);
+      return { 
+        progress: Math.min(accuracy / target * 100, 100), 
+        nextLevel: 'Advanced',
+        needed: questionsNeeded > 0 ? `${questionsNeeded} more questions` : 
+                accuracyNeeded > 0 ? `${accuracyNeeded}% more accuracy` : 'Almost there!'
+      };
+    }
+    const target = 80;
+    const minQuestions = 3;
+    const questionsNeeded = Math.max(0, minQuestions - user.totalAnswered);
+    const accuracyNeeded = Math.max(0, target - accuracy);
+    return { 
+      progress: Math.min(accuracy / target * 100, 100), 
+      nextLevel: 'Intermediate',
+      needed: questionsNeeded > 0 ? `${questionsNeeded} more questions` : 
+              accuracyNeeded > 0 ? `${accuracyNeeded}% more accuracy` : 'Almost there!'
+    };
+  };
+
+  const levelProgress = getLevelProgress();
+
   return (
     <div className="min-h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
       <CreditReward amount={rewardAmount} isVisible={showReward} />
@@ -133,23 +163,33 @@ export default function Dashboard() {
             </div>
             
             <div className="flex items-center gap-2">
-              <Badge 
-                variant={user.currentLevel === 'advanced' ? 'default' : 'secondary'}
-                className="capitalize"
-              >
-                {user.currentLevel}
-              </Badge>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/20">
+                <div className={`w-2 h-2 rounded-full ${
+                  user.currentLevel === 'advanced' ? 'bg-emerald-500' : 
+                  user.currentLevel === 'intermediate' ? 'bg-amber-500' : 'bg-primary'
+                }`} />
+                <span className="text-sm font-semibold capitalize">{user.currentLevel}</span>
+              </div>
               <ThemeToggle />
             </div>
           </div>
           
-          {totalCards > 0 && (
+          {levelProgress.nextLevel && (
             <div className="mt-3">
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                <span>Today's Progress</span>
-                <span>{todayProgress}/{totalCards}</span>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-muted-foreground">Next: <span className="font-medium text-foreground">{levelProgress.nextLevel}</span></span>
+                <span className="text-muted-foreground">{levelProgress.needed}</span>
               </div>
-              <Progress value={(todayProgress / totalCards) * 100} className="h-1.5" />
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <motion.div 
+                  className={`h-full rounded-full ${
+                    user.currentLevel === 'intermediate' ? 'bg-emerald-500' : 'bg-amber-500'
+                  }`}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${levelProgress.progress}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
             </div>
           )}
         </div>
