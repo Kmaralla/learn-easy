@@ -13,6 +13,16 @@ export async function registerRoutes(
     res.json({ credits: user.credits });
   });
 
+  app.post("/api/user/set-name", async (req, res) => {
+    const { username } = req.body;
+    if (!username || typeof username !== "string") {
+      return res.status(400).json({ error: "Username is required" });
+    }
+    const user = await (storage as any).getDefaultUser();
+    await (storage as any).updateUsername(user.id, username.trim());
+    res.json({ success: true });
+  });
+
   app.get("/api/learn", async (req, res) => {
     const user = await (storage as any).getDefaultUser();
     const currentCard = await (storage as any).getCurrentLearningCard();

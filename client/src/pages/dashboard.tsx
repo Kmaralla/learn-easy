@@ -1,30 +1,38 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw } from "lucide-react";
+import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw, BookOpen, Sparkles, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import { CreditReward } from "@/components/credit-reward";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { User, Question } from "@shared/schema";
+import type { User as UserType, Question } from "@shared/schema";
 
 type LearningData = {
-  user: User;
+  user: UserType;
   currentCard: {
     id: string;
-    type: "concept" | "question";
+    type: "concept" | "example" | "question";
     topic: string;
     difficulty: string;
+    lessonIndex: number;
+    stepInLesson: number;
     concept?: {
       title: string;
       content: string;
       keyTakeaway: string;
+    };
+    example?: {
+      title: string;
+      scenario: string;
+      explanation: string;
+      realWorldApplication: string;
     };
     question?: Question;
   } | null;
@@ -39,9 +47,28 @@ export default function Dashboard() {
   const [hasAnswered, setHasAnswered] = useState(false);
   const [showReward, setShowReward] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("learnai-username");
+    if (stored) {
+      setUserName(stored);
+    }
+  }, []);
 
   const { data, isLoading, refetch } = useQuery<LearningData>({
     queryKey: ["/api/learn"],
+    enabled: !!userName,
+  });
+
+  const setUserNameMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return apiRequest("POST", "/api/user/set-name", { username: name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
+    },
   });
 
   const submitAnswerMutation = useMutation({
@@ -63,6 +90,14 @@ export default function Dashboard() {
       setHasAnswered(false);
     },
   });
+
+  const handleSetName = useCallback(() => {
+    if (nameInput.trim()) {
+      localStorage.setItem("learnai-username", nameInput.trim());
+      setUserName(nameInput.trim());
+      setUserNameMutation.mutate(nameInput.trim());
+    }
+  }, [nameInput, setUserNameMutation]);
 
   const handleSelectAnswer = useCallback((index: number) => {
     if (hasAnswered || !data?.currentCard?.question) return;
@@ -94,6 +129,58 @@ export default function Dashboard() {
   const handleStartQuestions = useCallback(() => {
     nextCardMutation.mutate();
   }, [nextCardMutation]);
+
+  if (!userName) {
+    return (
+      <div className="min-h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="flex-1 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
+            <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-md relative z-10"
+          >
+            <Card className="overflow-hidden shadow-lg border-primary/10">
+              <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-0.5">
+                <CardContent className="p-8 bg-card rounded-md text-center">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-8 w-8 text-primary" />
+                  </div>
+                  <h1 className="text-2xl font-bold mb-2">Welcome to Learn-AI</h1>
+                  <p className="text-muted-foreground mb-6">
+                    Enter your name to start learning and track your progress
+                  </p>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="Your name"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSetName()}
+                      className="text-center text-lg"
+                      data-testid="input-username"
+                    />
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      onClick={handleSetName}
+                      disabled={!nameInput.trim()}
+                      data-testid="button-start-learning"
+                    >
+                      Start Learning
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -137,6 +224,16 @@ export default function Dashboard() {
   };
 
   const levelProgress = getLevelProgress();
+  const lessonStep = currentCard?.stepInLesson || 1;
+  const lessonNumber = (currentCard?.lessonIndex || 0) + 1;
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'advanced': return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+      case 'intermediate': return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30';
+      default: return 'bg-primary/10 text-primary border-primary/30';
+    }
+  };
 
   return (
     <div className="min-h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
@@ -148,6 +245,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div className="h-4 w-px bg-border" />
+              <span className="font-medium text-sm hidden sm:inline" data-testid="text-username">{userName}</span>
               <div className="flex items-center gap-1.5">
                 <Zap className="h-4 w-4 text-amber-500" />
                 <span className="font-semibold text-sm" data-testid="text-credits">{user.credits}</span>
@@ -163,7 +261,7 @@ export default function Dashboard() {
             </div>
             
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/20">
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${getDifficultyColor(user.currentLevel)}`}>
                 <div className={`w-2 h-2 rounded-full ${
                   user.currentLevel === 'advanced' ? 'bg-emerald-500' : 
                   user.currentLevel === 'intermediate' ? 'bg-amber-500' : 'bg-primary'
@@ -213,7 +311,7 @@ export default function Dashboard() {
                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 mb-6">
                   <Check className="h-10 w-10 text-emerald-500" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Great job!</h2>
+                <h2 className="text-2xl font-bold mb-2">Great job, {userName}!</h2>
                 <p className="text-muted-foreground mb-6">
                   You've completed today's learning session.
                 </p>
@@ -233,13 +331,37 @@ export default function Dashboard() {
                 <Card className="overflow-hidden shadow-lg border-primary/10">
                   <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-0.5">
                     <CardContent className="p-6 sm:p-8 bg-card rounded-md">
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            Lesson {lessonNumber}
+                          </Badge>
+                          <Badge className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}>
+                            {currentCard.difficulty}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <BookOpen className="h-3.5 w-3.5" />
+                          <span>Step {lessonStep} of 3</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-1 mb-6">
+                        {[1, 2, 3].map((step) => (
+                          <div 
+                            key={step} 
+                            className={`h-1 flex-1 rounded-full ${
+                              step <= lessonStep ? 'bg-primary' : 'bg-muted'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      
                       <div className="flex items-center gap-2 mb-4">
-                        <Badge variant="outline" className="text-xs">
-                          {currentCard.topic}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs capitalize">
-                          {currentCard.difficulty}
-                        </Badge>
+                        <div className="p-2 rounded-md bg-primary/10">
+                          <BookOpen className="h-5 w-5 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium text-muted-foreground">{currentCard.topic}</span>
                       </div>
                       
                       <h2 className="text-2xl font-bold mb-4" data-testid="text-concept-title">
@@ -271,9 +393,97 @@ export default function Dashboard() {
                         size="lg"
                         onClick={handleStartQuestions}
                         disabled={nextCardMutation.isPending}
-                        data-testid="button-start-questions"
+                        data-testid="button-next-step"
                       >
-                        {nextCardMutation.isPending ? "Loading..." : "Test Your Knowledge"}
+                        {nextCardMutation.isPending ? "Loading..." : "Continue to Example"}
+                        <ChevronRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </CardContent>
+                  </div>
+                </Card>
+              </motion.div>
+            ) : currentCard.type === "example" && currentCard.example ? (
+              <motion.div
+                key={`example-${currentCard.id}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="overflow-hidden shadow-lg border-amber-500/20">
+                  <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-0.5">
+                    <CardContent className="p-6 sm:p-8 bg-card rounded-md">
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            Lesson {lessonNumber}
+                          </Badge>
+                          <Badge className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}>
+                            {currentCard.difficulty}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <span>Step {lessonStep} of 3</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-1 mb-6">
+                        {[1, 2, 3].map((step) => (
+                          <div 
+                            key={step} 
+                            className={`h-1 flex-1 rounded-full ${
+                              step <= lessonStep ? 'bg-amber-500' : 'bg-muted'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="p-2 rounded-md bg-amber-500/10">
+                          <Sparkles className="h-5 w-5 text-amber-500" />
+                        </div>
+                        <span className="text-sm font-medium text-muted-foreground">Real-World Example</span>
+                      </div>
+                      
+                      <h2 className="text-2xl font-bold mb-4" data-testid="text-example-title">
+                        {currentCard.example.title}
+                      </h2>
+                      
+                      <div className="bg-muted/50 rounded-md p-4 mb-6">
+                        <p className="text-sm italic text-muted-foreground">
+                          {currentCard.example.scenario}
+                        </p>
+                      </div>
+                      
+                      <div className="prose prose-sm dark:prose-invert max-w-none mb-6">
+                        {currentCard.example.explanation.split('\n\n').map((paragraph, i) => (
+                          <p key={i} className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                            {paragraph}
+                          </p>
+                        ))}
+                      </div>
+                      
+                      <div className="bg-amber-500/5 border border-amber-500/20 rounded-md p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                          <Sparkles className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium text-sm mb-1">Real-World Application</p>
+                            <p className="text-sm text-muted-foreground">
+                              {currentCard.example.realWorldApplication}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Button 
+                        className="w-full" 
+                        size="lg"
+                        onClick={handleStartQuestions}
+                        disabled={nextCardMutation.isPending}
+                        data-testid="button-start-quiz"
+                      >
+                        {nextCardMutation.isPending ? "Loading..." : "Ready for Quiz"}
                         <ChevronRight className="h-4 w-4 ml-2" />
                       </Button>
                     </CardContent>
@@ -288,18 +498,37 @@ export default function Dashboard() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <Card className="overflow-hidden shadow-lg">
+                <Card className="overflow-hidden shadow-lg border-emerald-500/20">
                   <CardContent className="p-6 sm:p-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Badge variant="outline" className="text-xs">
-                        {currentCard.topic}
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs capitalize">
-                        {currentCard.difficulty}
-                      </Badge>
-                      <Badge className="text-xs ml-auto">
-                        +{currentCard.question.creditsReward} credits
-                      </Badge>
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          Lesson {lessonNumber}
+                        </Badge>
+                        <Badge className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}>
+                          {currentCard.difficulty}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Target className="h-3.5 w-3.5" />
+                          <span>Step {lessonStep} of 3</span>
+                        </div>
+                        <Badge className="text-xs bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                          +{currentCard.question.creditsReward} credits
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-1 mb-6">
+                      {[1, 2, 3].map((step) => (
+                        <div 
+                          key={step} 
+                          className={`h-1 flex-1 rounded-full ${
+                            step <= lessonStep ? 'bg-emerald-500' : 'bg-muted'
+                          }`}
+                        />
+                      ))}
                     </div>
                     
                     {currentCard.question.scenario && (
@@ -389,7 +618,7 @@ export default function Dashboard() {
                             disabled={nextCardMutation.isPending}
                             data-testid="button-next-card"
                           >
-                            Continue
+                            Next Lesson
                             <ArrowRight className="h-4 w-4 ml-2" />
                           </Button>
                         </motion.div>

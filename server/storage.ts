@@ -5,13 +5,21 @@ import { randomUUID } from "crypto";
 
 type LearningCard = {
   id: string;
-  type: "concept" | "question";
+  type: "concept" | "example" | "question";
   topic: string;
   difficulty: string;
+  lessonIndex: number;
+  stepInLesson: number;
   concept?: {
     title: string;
     content: string;
     keyTakeaway: string;
+  };
+  example?: {
+    title: string;
+    scenario: string;
+    explanation: string;
+    realWorldApplication: string;
   };
   question?: Question;
 };
@@ -81,9 +89,14 @@ export class MemStorage implements IStorage {
   }
 
   private initializeLearningCards() {
-    const cards: Omit<LearningCard, "id">[] = [
+    const lessons: Array<{
+      topic: string;
+      difficulty: string;
+      concept: { title: string; content: string; keyTakeaway: string };
+      example: { title: string; scenario: string; explanation: string; realWorldApplication: string };
+      question: Omit<Question, "id" | "lessonId">;
+    }> = [
       {
-        type: "concept",
         topic: "AI Agents",
         difficulty: "beginner",
         concept: {
@@ -95,14 +108,25 @@ Unlike a simple chatbot that just responds to messages, an agent can actually DO
 The key insight: Agents = Models + Tools + Loop. The AI model (like GPT or Claude) provides the "thinking," tools provide the "doing," and the loop keeps everything moving toward the goal.`,
           keyTakeaway: "An AI Agent runs models and tools in a loop to achieve a goal - it thinks, acts, and iterates until done.",
         },
-      },
-      {
-        type: "question",
-        topic: "AI Agents",
-        difficulty: "beginner",
+        example: {
+          title: "AI Agent in Action: The Smart Research Assistant",
+          scenario: "Imagine you ask an AI: 'Find me the top 3 trending AI startups this week and summarize what they do.'",
+          explanation: `Here's how an AI Agent handles this differently than a chatbot:
+
+A chatbot might say: "I don't have real-time data" or give you outdated information.
+
+An AI Agent would:
+1. THINK: "I need current data, so I'll search the web"
+2. ACT: Uses a search tool to find recent AI startup news
+3. OBSERVE: Gets results from TechCrunch, VentureBeat
+4. THINK: "Now I need to extract the top 3 and summarize"
+5. ACT: Reads the articles and synthesizes information
+6. DELIVER: Gives you a fresh, accurate summary
+
+The agent loops through think-act-observe until the job is done!`,
+          realWorldApplication: "This is exactly how tools like Perplexity AI work - they don't just guess, they actively search and verify information before responding.",
+        },
         question: {
-          id: randomUUID(),
-          lessonId: "",
           scenario: "A company wants to build a system that can automatically research competitors, analyze their products, and generate a summary report.",
           question: "What makes this an AI Agent rather than a simple chatbot?",
           options: [
@@ -118,7 +142,6 @@ The key insight: Agents = Models + Tools + Loop. The AI model (like GPT or Claud
         },
       },
       {
-        type: "concept",
         topic: "ReAct Pattern",
         difficulty: "beginner",
         concept: {
@@ -134,14 +157,30 @@ The key insight: Agents = Models + Tools + Loop. The AI model (like GPT or Claud
 Then it loops back to THOUGHT, deciding what to do with this new information. This "chain-of-thought" approach dramatically improves AI performance by making the model explain its reasoning before acting.`,
           keyTakeaway: "ReAct = Think, Act, Observe, Repeat. This loop lets agents break down complex tasks into manageable steps.",
         },
-      },
-      {
-        type: "question",
-        topic: "ReAct Pattern",
-        difficulty: "beginner",
+        example: {
+          title: "ReAct in Real Life: Booking a Flight",
+          scenario: "You tell an AI travel agent: 'Book me the cheapest flight to Tokyo next month.'",
+          explanation: `Watch the ReAct pattern unfold:
+
+THOUGHT 1: "I need to know the user's departure city and exact dates"
+ACTION 1: Ask user for departure location and flexible dates
+OBSERVATION 1: User says "From NYC, any weekend"
+
+THOUGHT 2: "I should search multiple weekends to find the best deal"
+ACTION 2: Query flight APIs for 4 different weekend combinations
+OBSERVATION 2: Found prices ranging from $650 to $1,200
+
+THOUGHT 3: "March 15-17 is cheapest. I should confirm before booking"
+ACTION 3: Present option to user with flight details
+OBSERVATION 3: User approves
+
+THOUGHT 4: "Time to complete the booking"
+ACTION 4: Execute booking through airline API
+
+Each step builds on the last - that's the power of ReAct!`,
+          realWorldApplication: "Google's travel search and booking assistants use this pattern to help millions of users find the best deals every day.",
+        },
         question: {
-          id: randomUUID(),
-          lessonId: "",
           scenario: "You're building an AI travel assistant. A user asks: 'Plan me a weekend trip to Paris with good food and art museums.'",
           question: "Following the ReAct pattern, what should happen FIRST?",
           options: [
@@ -157,47 +196,6 @@ Then it loops back to THOUGHT, deciding what to do with this new information. Th
         },
       },
       {
-        type: "concept",
-        topic: "Agent Memory",
-        difficulty: "intermediate",
-        concept: {
-          title: "Memory Systems: Short-term vs Long-term",
-          content: `Agents need memory to work effectively. But here's the catch: you can't just dump everything into the AI's context window. Too much information can confuse the model.
-
-Short-term Memory holds the current conversation and immediate context. It's like your working memory - what you're actively thinking about right now.
-
-Long-term Memory persists across sessions. It includes:
-- User preferences and history
-- Knowledge bases and documents
-- Previous conversation summaries
-
-Smart agents use techniques like vector search to find relevant memories instead of loading everything at once. Think of it like how you don't remember every book you've read, but you can recall relevant information when you need it.`,
-          keyTakeaway: "Effective agents balance short-term context with selective retrieval from long-term memory - just like humans do.",
-        },
-      },
-      {
-        type: "question",
-        topic: "Agent Memory",
-        difficulty: "intermediate",
-        question: {
-          id: randomUUID(),
-          lessonId: "",
-          scenario: "An AI customer service agent needs to help a returning customer who had issues with a product 3 months ago.",
-          question: "How should the agent handle this customer's history?",
-          options: [
-            "Load all customer emails from the past year into the context",
-            "Start fresh with no memory of past interactions",
-            "Use vector search to retrieve only relevant past interactions",
-            "Ask the customer to explain everything from the beginning"
-          ],
-          correctIndex: 2,
-          explanation: "Vector search retrieves semantically relevant memories without overloading context. Loading everything would confuse the model and be slow. Starting fresh or asking the customer to repeat themselves creates a poor experience. Smart retrieval gives the agent just what it needs.",
-          difficulty: "intermediate",
-          creditsReward: 15,
-        },
-      },
-      {
-        type: "concept",
         topic: "Tools & APIs",
         difficulty: "beginner",
         concept: {
@@ -216,14 +214,31 @@ When you give an agent access to tools, you're essentially giving it hands to ac
 The more tools an agent has, the more capable it becomes. But with great power comes great responsibility - you need guardrails!`,
           keyTakeaway: "Tools give AI agents the ability to act in the world - from searching to sending emails to executing code.",
         },
-      },
-      {
-        type: "question",
-        topic: "Tools & APIs",
-        difficulty: "beginner",
+        example: {
+          title: "Tools in Action: The AI Data Analyst",
+          scenario: "A marketing manager asks: 'Analyze our Q4 sales data and create a presentation for the board meeting.'",
+          explanation: `The AI agent orchestrates multiple tools:
+
+DATABASE TOOL: Queries the sales database
+"SELECT product, revenue, region FROM sales WHERE quarter = 'Q4'"
+
+CALCULATOR TOOL: Performs analysis
+- Calculates growth rates, top performers, regional breakdowns
+- Identifies trends and anomalies
+
+CHART GENERATOR: Creates visualizations
+- Revenue by product (bar chart)
+- Regional comparison (pie chart)
+- Month-over-month trend (line graph)
+
+SLIDES TOOL: Builds the presentation
+- Arranges data into executive summary
+- Adds key insights and recommendations
+
+The AI doesn't do any of this itself - it's the conductor, and the tools are the orchestra!`,
+          realWorldApplication: "Microsoft Copilot uses this exact approach - connecting to Excel, PowerPoint, and databases to help knowledge workers automate complex tasks.",
+        },
         question: {
-          id: randomUUID(),
-          lessonId: "",
           scenario: "You're building an AI agent to help with data analysis. Users want it to query databases, create charts, and send results via email.",
           question: "Which tools does this agent need?",
           options: [
@@ -239,7 +254,57 @@ The more tools an agent has, the more capable it becomes. But with great power c
         },
       },
       {
-        type: "concept",
+        topic: "Agent Memory",
+        difficulty: "intermediate",
+        concept: {
+          title: "Memory Systems: Short-term vs Long-term",
+          content: `Agents need memory to work effectively. But here's the catch: you can't just dump everything into the AI's context window. Too much information can confuse the model.
+
+Short-term Memory holds the current conversation and immediate context. It's like your working memory - what you're actively thinking about right now.
+
+Long-term Memory persists across sessions. It includes:
+- User preferences and history
+- Knowledge bases and documents
+- Previous conversation summaries
+
+Smart agents use techniques like vector search to find relevant memories instead of loading everything at once. Think of it like how you don't remember every book you've read, but you can recall relevant information when you need it.`,
+          keyTakeaway: "Effective agents balance short-term context with selective retrieval from long-term memory - just like humans do.",
+        },
+        example: {
+          title: "Memory in Action: The Personal Shopping Assistant",
+          scenario: "A customer returns to an e-commerce site after 2 months and says: 'I need another pair of those running shoes I bought.'",
+          explanation: `How memory makes this interaction magical:
+
+WITHOUT MEMORY:
+"I'm sorry, I don't know what shoes you bought. Can you describe them or provide an order number?"
+(Frustrating for the customer!)
+
+WITH SMART MEMORY:
+The agent uses vector search on the customer's history:
+- Query: "running shoes purchase"
+- Retrieved: Order #4521 - Nike Air Zoom, Size 10, Blue, $129
+
+Agent response: "I found your Nike Air Zoom Pegasus in size 10! Would you like the same blue color, or try the new colorways? I also noticed you mentioned they were great for marathon training - we have a newer model optimized for long distances."
+
+The agent pulled relevant history AND added personalized recommendations!`,
+          realWorldApplication: "Amazon's recommendation engine and customer service bots use exactly this pattern - retrieving relevant purchase history and preferences to personalize every interaction.",
+        },
+        question: {
+          scenario: "An AI customer service agent needs to help a returning customer who had issues with a product 3 months ago.",
+          question: "How should the agent handle this customer's history?",
+          options: [
+            "Load all customer emails from the past year into the context",
+            "Start fresh with no memory of past interactions",
+            "Use vector search to retrieve only relevant past interactions",
+            "Ask the customer to explain everything from the beginning"
+          ],
+          correctIndex: 2,
+          explanation: "Vector search retrieves semantically relevant memories without overloading context. Loading everything would confuse the model and be slow. Starting fresh or asking the customer to repeat themselves creates a poor experience. Smart retrieval gives the agent just what it needs.",
+          difficulty: "intermediate",
+          creditsReward: 15,
+        },
+      },
+      {
         topic: "Agent Architecture",
         difficulty: "intermediate",
         concept: {
@@ -259,14 +324,39 @@ Multi-agent architectures also enable debates and consensus - when agents disagr
 Research shows multi-agent systems can improve performance by around 29% on complex benchmarks!`,
           keyTakeaway: "Multi-agent systems divide complex tasks among specialized agents, improving reliability and performance.",
         },
-      },
-      {
-        type: "question",
-        topic: "Agent Architecture",
-        difficulty: "intermediate",
+        example: {
+          title: "Multi-Agent System: The AI Newsroom",
+          scenario: "A media company wants to automatically produce high-quality news articles about breaking stories.",
+          explanation: `Here's how a multi-agent newsroom works:
+
+SCANNER AGENT (always watching)
+- Monitors news wires, social media, official sources
+- Flags breaking stories worth covering
+
+RESEARCHER AGENT (digs deep)
+- Gathers facts, finds primary sources
+- Verifies claims against multiple sources
+- Compiles background information
+
+WRITER AGENT (crafts the story)
+- Writes engaging, accurate copy
+- Matches the publication's style guide
+- Creates headlines and summaries
+
+EDITOR AGENT (quality control)
+- Checks for errors and bias
+- Verifies facts one more time
+- Ensures legal compliance
+
+PUBLISHER AGENT (distribution)
+- Formats for different platforms
+- Schedules optimal posting times
+- Manages social media promotion
+
+Each agent is a specialist - together they outperform any single "do-everything" agent!`,
+          realWorldApplication: "The Associated Press uses AI agents to write thousands of corporate earnings reports - specialized agents handle data extraction while others write the narrative.",
+        },
         question: {
-          id: randomUUID(),
-          lessonId: "",
           scenario: "A company wants to automate their content creation pipeline: research topics, write articles, edit for quality, and publish.",
           question: "Why might a multi-agent approach work better than a single agent?",
           options: [
@@ -282,7 +372,6 @@ Research shows multi-agent systems can improve performance by around 29% on comp
         },
       },
       {
-        type: "concept",
         topic: "Agent Safety",
         difficulty: "intermediate",
         concept: {
@@ -304,14 +393,37 @@ Key safety principles:
 Building trustworthy agents isn't just about capability - it's about predictable, controlled behavior.`,
           keyTakeaway: "Safe agents use least privilege, human oversight for high-stakes actions, isolation, and comprehensive logging.",
         },
-      },
-      {
-        type: "question",
-        topic: "Agent Safety",
-        difficulty: "intermediate",
+        example: {
+          title: "Guardrails in Action: The Banking Assistant",
+          scenario: "A bank deploys an AI agent to help customers with account management and transactions.",
+          explanation: `Watch how guardrails protect everyone:
+
+LEAST PRIVILEGE:
+- Can view balance and recent transactions
+- Can NOT access other customers' data
+- Can NOT modify account settings without 2FA
+
+HUMAN-IN-THE-LOOP:
+- Small transfers (<$500): Agent can process automatically
+- Large transfers (>$500): Requires human review
+- International transfers: Always needs manager approval
+
+SESSION ISOLATION:
+- Each chat session runs in its own container
+- One hacked session can't access others
+- Session data wiped after 24 hours
+
+AUDIT TRAIL:
+- Every action logged with timestamp
+- "Agent viewed balance for account ***4521"
+- "Agent initiated transfer of $200 to saved payee"
+- "Transfer approved by system (under threshold)"
+
+When the agent encounters something suspicious:
+"I notice this is a new payee in a foreign country. For your protection, I'm escalating this to a human specialist who will call you to verify."`,
+          realWorldApplication: "Bank of America's Erica assistant and similar banking bots use exactly these guardrails to process millions of requests while maintaining security.",
+        },
         question: {
-          id: randomUUID(),
-          lessonId: "",
           scenario: "An AI agent has access to a company's customer database and email system. A prompt injection attack tries to make it email customer data to an external address.",
           question: "Which guardrail would BEST prevent this attack?",
           options: [
@@ -327,7 +439,6 @@ Building trustworthy agents isn't just about capability - it's about predictable
         },
       },
       {
-        type: "concept",
         topic: "Code Execution",
         difficulty: "advanced",
         concept: {
@@ -347,14 +458,48 @@ Modern approaches use microVMs (tiny virtual machines) that spin up in milliseco
 This pattern powers tools like ChatGPT's Code Interpreter and many enterprise AI solutions.`,
           keyTakeaway: "Code interpreters let agents write and run code in secure sandboxes, enabling powerful data analysis and automation.",
         },
-      },
-      {
-        type: "question",
-        topic: "Code Execution",
-        difficulty: "advanced",
+        example: {
+          title: "Code Interpreter: The Data Detective",
+          scenario: "A business analyst uploads a messy CSV file and asks: 'Find any unusual patterns in our sales data.'",
+          explanation: `The code interpreter agent gets to work:
+
+STEP 1: Understand the data
+\`\`\`python
+import pandas as pd
+df = pd.read_csv('sales_data.csv')
+print(df.head())
+print(df.describe())
+\`\`\`
+"I see 50,000 rows with columns: date, product, quantity, price, region..."
+
+STEP 2: Clean and prepare
+\`\`\`python
+df['date'] = pd.to_datetime(df['date'])
+df['revenue'] = df['quantity'] * df['price']
+df = df.dropna()
+\`\`\`
+"Cleaned the data, calculated revenue, removed 23 incomplete rows..."
+
+STEP 3: Detect anomalies
+\`\`\`python
+from scipy import stats
+z_scores = stats.zscore(df['revenue'])
+anomalies = df[abs(z_scores) > 3]
+\`\`\`
+"Found 17 unusual transactions!"
+
+STEP 4: Visualize
+\`\`\`python
+import matplotlib.pyplot as plt
+# Creates a chart highlighting the anomalies
+\`\`\`
+
+RESULT: "I found 17 anomalous sales - 12 are unusually large orders from Region B on Fridays. This might indicate bulk purchasing by a large client. Here's a visualization..."
+
+All this runs in a secure sandbox - the code can't access anything outside its container!`,
+          realWorldApplication: "ChatGPT's Code Interpreter, GitHub Copilot, and Jupyter AI all use sandboxed code execution to let users safely analyze data without writing code themselves.",
+        },
         question: {
-          id: randomUUID(),
-          lessonId: "",
           scenario: "An AI data analyst agent needs to process a large CSV file, find anomalies, and create a visualization. The agent writes Python code to do this.",
           question: "Why is sandboxed code execution critical for this use case?",
           options: [
@@ -370,6 +515,38 @@ This pattern powers tools like ChatGPT's Code Interpreter and many enterprise AI
         },
       },
     ];
+
+    const cards: Omit<LearningCard, "id">[] = [];
+    lessons.forEach((lesson, lessonIndex) => {
+      cards.push({
+        type: "concept",
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 1,
+        concept: lesson.concept,
+      });
+      cards.push({
+        type: "example",
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 2,
+        example: lesson.example,
+      });
+      cards.push({
+        type: "question",
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 3,
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          ...lesson.question,
+        },
+      });
+    });
 
     this.learningCards = cards.map(card => ({
       ...card,
@@ -502,6 +679,13 @@ This pattern powers tools like ChatGPT's Code Interpreter and many enterprise AI
     const user = this.users.get(this.defaultUserId);
     if (user) {
       user.streak = streak;
+    }
+  }
+
+  async updateUsername(id: string, username: string): Promise<void> {
+    const user = this.users.get(this.defaultUserId);
+    if (user) {
+      user.username = username;
     }
   }
 
