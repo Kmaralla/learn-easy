@@ -1,30 +1,101 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Play, Sparkles, Brain, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatsBar } from "@/components/stats-bar";
-import { ModuleCard } from "@/components/module-card";
-import { StreakCalendar } from "@/components/streak-calendar";
-import { DifficultyBadge } from "@/components/difficulty-badge";
-import { ProgressRing } from "@/components/progress-ring";
-import type { Module, User } from "@shared/schema";
+import { Progress } from "@/components/ui/progress";
+import { CreditReward } from "@/components/credit-reward";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { User, Question } from "@shared/schema";
 
-type DashboardData = {
+type LearningData = {
   user: User;
-  modules: (Module & { progress: { completed: number; total: number } })[];
-  currentModule: Module | null;
-  currentLesson: { id: string; title: string; moduleId: string } | null;
-  activeDays: number[];
+  currentCard: {
+    id: string;
+    type: "concept" | "question";
+    topic: string;
+    difficulty: string;
+    concept?: {
+      title: string;
+      content: string;
+      keyTakeaway: string;
+    };
+    question?: Question;
+  } | null;
+  streak: number;
+  todayProgress: number;
+  totalCards: number;
 };
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [hasAnswered, setHasAnswered] = useState(false);
+  const [showReward, setShowReward] = useState(false);
+  const [rewardAmount, setRewardAmount] = useState(0);
+  const [showConcept, setShowConcept] = useState(true);
 
-  const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ["/api/dashboard"],
+  const { data, isLoading, refetch } = useQuery<LearningData>({
+    queryKey: ["/api/learn"],
   });
+
+  const submitAnswerMutation = useMutation({
+    mutationFn: async (payload: { questionId: string; isCorrect: boolean; creditsEarned: number }) => {
+      return apiRequest("POST", "/api/answer", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
+    },
+  });
+
+  const nextCardMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/next-card", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
+      setSelectedAnswer(null);
+      setHasAnswered(false);
+      setShowConcept(true);
+    },
+  });
+
+  const handleSelectAnswer = useCallback((index: number) => {
+    if (hasAnswered || !data?.currentCard?.question) return;
+    
+    setSelectedAnswer(index);
+    setHasAnswered(true);
+    
+    const question = data.currentCard.question;
+    const isCorrect = index === question.correctIndex;
+    const earned = isCorrect ? question.creditsReward : 0;
+    
+    if (earned > 0) {
+      setRewardAmount(earned);
+      setShowReward(true);
+      setTimeout(() => setShowReward(false), 2000);
+    }
+    
+    submitAnswerMutation.mutate({
+      questionId: question.id,
+      isCorrect,
+      creditsEarned: earned,
+    });
+  }, [hasAnswered, data, submitAnswerMutation]);
+
+  const handleNext = useCallback(() => {
+    nextCardMutation.mutate();
+  }, [nextCardMutation]);
+
+  const handleStartQuestions = useCallback(() => {
+    setShowConcept(false);
+  }, []);
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -34,127 +105,258 @@ export default function Dashboard() {
     return null;
   }
 
-  const { user, modules, currentModule, currentLesson, activeDays } = data;
+  const { user, currentCard, streak, todayProgress, totalCards } = data;
   const accuracy = user.totalAnswered > 0 
     ? Math.round((user.totalCorrect / user.totalAnswered) * 100) 
     : 0;
 
-  const totalProgress = modules.reduce((acc, m) => acc + m.progress.completed, 0);
-  const totalLessons = modules.reduce((acc, m) => acc + m.progress.total, 0);
-  const overallProgress = totalLessons > 0 ? Math.round((totalProgress / totalLessons) * 100) : 0;
-
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-welcome">
-            Welcome back
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Continue your AI learning journey
-          </p>
-        </div>
-        <StatsBar credits={user.credits} streak={user.streak} accuracy={accuracy} />
-      </div>
-
-      {currentLesson && currentModule && (
-        <Card className="overflow-hidden">
-          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
-            <CardContent className="p-6 sm:p-8">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                <div className="flex items-start gap-4 flex-1">
-                  <div className="p-3 rounded-md bg-primary/20">
-                    <Brain className="h-8 w-8 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-sm text-muted-foreground">Continue Learning</span>
-                      <DifficultyBadge difficulty={user.currentLevel} />
-                    </div>
-                    <h2 className="text-xl font-semibold mb-1" data-testid="text-current-lesson">
-                      {currentLesson.title}
-                    </h2>
-                    <p className="text-muted-foreground text-sm">
-                      {currentModule.title}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  size="lg"
-                  onClick={() => setLocation(`/lesson/${currentLesson.id}`)}
-                  data-testid="button-continue-learning"
-                >
-                  <Play className="h-5 w-5 mr-2" />
-                  Resume
-                </Button>
+    <div className="min-h-full flex flex-col">
+      <CreditReward amount={rewardAmount} isVisible={showReward} />
+      
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b">
+        <div className="max-w-3xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <Zap className="h-4 w-4 text-amber-500" />
+                <span className="font-semibold text-sm" data-testid="text-credits">{user.credits}</span>
               </div>
-            </CardContent>
-          </div>
-        </Card>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Learning Modules</h2>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setLocation("/lessons")}
-              data-testid="button-view-all-modules"
-            >
-              View All
-            </Button>
+              <div className="flex items-center gap-1.5">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <span className="font-semibold text-sm" data-testid="text-streak">{streak} day{streak !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Target className="h-4 w-4 text-emerald-500" />
+                <span className="font-semibold text-sm" data-testid="text-accuracy">{accuracy}%</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Badge 
+                variant={user.currentLevel === 'advanced' ? 'default' : 'secondary'}
+                className="capitalize"
+              >
+                {user.currentLevel}
+              </Badge>
+              <ThemeToggle />
+            </div>
           </div>
           
-          <div className="space-y-4">
-            {modules.slice(0, 4).map((module) => (
-              <ModuleCard
-                key={module.id}
-                module={module}
-                progress={module.progress}
-                onClick={() => {
-                  const firstLessonId = module.id;
-                  setLocation(`/module/${module.id}`);
-                }}
-                isCurrent={currentModule?.id === module.id}
-              />
-            ))}
-          </div>
+          {totalCards > 0 && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>Today's Progress</span>
+                <span>{todayProgress}/{totalCards}</span>
+              </div>
+              <Progress value={(todayProgress / totalCards) * 100} className="h-1.5" />
+            </div>
+          )}
         </div>
+      </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Your Progress
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-center">
-                <ProgressRing progress={overallProgress} size={100} strokeWidth={8} />
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold" data-testid="text-lessons-completed">
-                  {totalProgress}/{totalLessons}
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-2xl">
+          <AnimatePresence mode="wait">
+            {!currentCard ? (
+              <motion.div
+                key="complete"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="text-center py-12"
+              >
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 mb-6">
+                  <Check className="h-10 w-10 text-emerald-500" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Great job!</h2>
+                <p className="text-muted-foreground mb-6">
+                  You've completed today's learning session.
                 </p>
-                <p className="text-sm text-muted-foreground">Lessons Completed</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-500" />
-                Weekly Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StreakCalendar activeDays={activeDays} currentStreak={user.streak} />
-            </CardContent>
-          </Card>
+                <Button onClick={() => refetch()} data-testid="button-learn-more">
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Learn More
+                </Button>
+              </motion.div>
+            ) : currentCard.type === "concept" && showConcept && currentCard.concept ? (
+              <motion.div
+                key={`concept-${currentCard.id}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="overflow-hidden">
+                  <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-1">
+                    <CardContent className="p-6 sm:p-8 bg-card rounded-md">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Badge variant="outline" className="text-xs">
+                          {currentCard.topic}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs capitalize">
+                          {currentCard.difficulty}
+                        </Badge>
+                      </div>
+                      
+                      <h2 className="text-2xl font-bold mb-4" data-testid="text-concept-title">
+                        {currentCard.concept.title}
+                      </h2>
+                      
+                      <div className="prose prose-sm dark:prose-invert max-w-none mb-6">
+                        {currentCard.concept.content.split('\n\n').map((paragraph, i) => (
+                          <p key={i} className="text-muted-foreground leading-relaxed">
+                            {paragraph}
+                          </p>
+                        ))}
+                      </div>
+                      
+                      <div className="bg-primary/5 border border-primary/20 rounded-md p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                          <Lightbulb className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium text-sm mb-1">Key Takeaway</p>
+                            <p className="text-sm text-muted-foreground">
+                              {currentCard.concept.keyTakeaway}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Button 
+                        className="w-full" 
+                        size="lg"
+                        onClick={handleStartQuestions}
+                        data-testid="button-start-questions"
+                      >
+                        Test Your Knowledge
+                        <ChevronRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </CardContent>
+                  </div>
+                </Card>
+              </motion.div>
+            ) : currentCard.question ? (
+              <motion.div
+                key={`question-${currentCard.id}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="overflow-hidden">
+                  <CardContent className="p-6 sm:p-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Badge variant="outline" className="text-xs">
+                        {currentCard.topic}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs capitalize">
+                        {currentCard.difficulty}
+                      </Badge>
+                      <Badge className="text-xs ml-auto">
+                        +{currentCard.question.creditsReward} credits
+                      </Badge>
+                    </div>
+                    
+                    {currentCard.question.scenario && (
+                      <div className="bg-muted/50 rounded-md p-4 mb-4">
+                        <p className="text-sm italic text-muted-foreground">
+                          {currentCard.question.scenario}
+                        </p>
+                      </div>
+                    )}
+                    
+                    <h3 className="text-xl font-semibold mb-6" data-testid="text-question">
+                      {currentCard.question.question}
+                    </h3>
+                    
+                    <div className="space-y-3 mb-6">
+                      {currentCard.question.options.map((option, index) => {
+                        const isSelected = selectedAnswer === index;
+                        const isCorrect = index === currentCard.question!.correctIndex;
+                        const showResult = hasAnswered;
+                        
+                        let className = "w-full text-left p-4 rounded-md border transition-all ";
+                        if (showResult) {
+                          if (isCorrect) {
+                            className += "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-300";
+                          } else if (isSelected && !isCorrect) {
+                            className += "bg-destructive/10 border-destructive text-destructive";
+                          } else {
+                            className += "opacity-50";
+                          }
+                        } else if (isSelected) {
+                          className += "bg-primary/10 border-primary";
+                        } else {
+                          className += "hover-elevate active-elevate-2";
+                        }
+                        
+                        return (
+                          <button
+                            key={index}
+                            className={className}
+                            onClick={() => handleSelectAnswer(index)}
+                            disabled={hasAnswered}
+                            data-testid={`button-option-${index}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-muted text-sm font-medium shrink-0">
+                                {String.fromCharCode(65 + index)}
+                              </span>
+                              <span className="text-sm">{option}</span>
+                              {showResult && isCorrect && (
+                                <Check className="h-5 w-5 text-emerald-500 ml-auto shrink-0" />
+                              )}
+                              {showResult && isSelected && !isCorrect && (
+                                <X className="h-5 w-5 text-destructive ml-auto shrink-0" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    <AnimatePresence>
+                      {hasAnswered && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                        >
+                          <div className={`p-4 rounded-md mb-6 ${
+                            selectedAnswer === currentCard.question.correctIndex
+                              ? "bg-emerald-500/10 border border-emerald-500/30"
+                              : "bg-destructive/10 border border-destructive/30"
+                          }`}>
+                            <p className="font-medium text-sm mb-2">
+                              {selectedAnswer === currentCard.question.correctIndex 
+                                ? "Excellent!" 
+                                : "Not quite right"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {currentCard.question.explanation}
+                            </p>
+                          </div>
+                          
+                          <Button 
+                            className="w-full" 
+                            size="lg"
+                            onClick={handleNext}
+                            disabled={nextCardMutation.isPending}
+                            data-testid="button-next-card"
+                          >
+                            Continue
+                            <ArrowRight className="h-4 w-4 ml-2" />
+                          </Button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </div>
       </div>
     </div>
@@ -163,31 +365,24 @@ export default function Dashboard() {
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Skeleton className="h-9 w-48 mb-2" />
-          <Skeleton className="h-5 w-64" />
-        </div>
-        <div className="flex gap-3">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-8 w-28" />
+    <div className="min-h-full flex flex-col">
+      <div className="sticky top-0 z-50 bg-background border-b">
+        <div className="max-w-3xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-5 w-16" />
+              <Skeleton className="h-5 w-20" />
+              <Skeleton className="h-5 w-14" />
+            </div>
+            <Skeleton className="h-5 w-20" />
+          </div>
+          <Skeleton className="h-1.5 w-full mt-3" />
         </div>
       </div>
 
-      <Skeleton className="h-32 w-full" />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
-          <Skeleton className="h-7 w-40" />
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-        </div>
-        <div className="space-y-6">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-32 w-full" />
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-2xl">
+          <Skeleton className="h-96 w-full rounded-lg" />
         </div>
       </div>
     </div>

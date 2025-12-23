@@ -12,6 +12,26 @@ export async function registerRoutes(
     res.json({ credits: user.credits });
   });
 
+  app.get("/api/learn", async (req, res) => {
+    const user = await (storage as any).getDefaultUser();
+    const currentCard = await (storage as any).getCurrentLearningCard();
+    const todayProgress = await (storage as any).getTodayProgress();
+    const totalCards = await (storage as any).getTotalCards();
+    
+    res.json({
+      user,
+      currentCard,
+      streak: user.streak,
+      todayProgress,
+      totalCards,
+    });
+  });
+
+  app.post("/api/next-card", async (req, res) => {
+    await (storage as any).advanceToNextCard();
+    res.json({ success: true });
+  });
+
   app.get("/api/dashboard", async (req, res) => {
     const user = await (storage as any).getDefaultUser();
     const modules = await storage.getModules();

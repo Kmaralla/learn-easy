@@ -14,8 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
-  { title: "Dashboard", url: "/", icon: Home },
-  { title: "Lessons", url: "/lessons", icon: BookOpen },
+  { title: "Learn", url: "/", icon: Home },
   { title: "Progress", url: "/progress", icon: BarChart3 },
   { title: "Profile", url: "/profile", icon: User },
 ];

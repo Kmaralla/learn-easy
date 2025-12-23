@@ -3,6 +3,19 @@ import type {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+type LearningCard = {
+  id: string;
+  type: "concept" | "question";
+  topic: string;
+  difficulty: string;
+  concept?: {
+    title: string;
+    content: string;
+    keyTakeaway: string;
+  };
+  question?: Question;
+};
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -33,6 +46,10 @@ export class MemStorage implements IStorage {
   private questions: Map<string, Question>;
   private userProgress: Map<string, UserProgress>;
   private defaultUserId: string;
+  
+  private learningCards: LearningCard[];
+  private currentCardIndex: number;
+  private completedCardIds: Set<string>;
 
   constructor() {
     this.users = new Map();
@@ -40,6 +57,9 @@ export class MemStorage implements IStorage {
     this.lessons = new Map();
     this.questions = new Map();
     this.userProgress = new Map();
+    this.learningCards = [];
+    this.currentCardIndex = 0;
+    this.completedCardIds = new Set();
     
     this.defaultUserId = randomUUID();
     this.initializeData();
@@ -49,42 +69,320 @@ export class MemStorage implements IStorage {
     const defaultUser: User = {
       id: this.defaultUserId,
       username: "Learner",
-      credits: 150,
-      streak: 3,
-      totalCorrect: 12,
-      totalAnswered: 15,
+      credits: 0,
+      streak: 1,
+      totalCorrect: 0,
+      totalAnswered: 0,
       currentLevel: "beginner",
     };
     this.users.set(defaultUser.id, defaultUser);
 
+    this.initializeLearningCards();
+  }
+
+  private initializeLearningCards() {
+    const cards: Omit<LearningCard, "id">[] = [
+      {
+        type: "concept",
+        topic: "AI Agents",
+        difficulty: "beginner",
+        concept: {
+          title: "What is an AI Agent?",
+          content: `An AI Agent is a system that uses AI models and tools in a loop to achieve a goal. Think of it as a smart assistant that can reason, take action, and learn from results.
+
+Unlike a simple chatbot that just responds to messages, an agent can actually DO things - search the web, write code, call APIs, and more. It keeps working until it accomplishes what you asked for.
+
+The key insight: Agents = Models + Tools + Loop. The AI model (like GPT or Claude) provides the "thinking," tools provide the "doing," and the loop keeps everything moving toward the goal.`,
+          keyTakeaway: "An AI Agent runs models and tools in a loop to achieve a goal - it thinks, acts, and iterates until done.",
+        },
+      },
+      {
+        type: "question",
+        topic: "AI Agents",
+        difficulty: "beginner",
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          scenario: "A company wants to build a system that can automatically research competitors, analyze their products, and generate a summary report.",
+          question: "What makes this an AI Agent rather than a simple chatbot?",
+          options: [
+            "It uses a large language model",
+            "It can search the web and use tools in a loop to complete the task",
+            "It responds to user messages",
+            "It has a nice user interface"
+          ],
+          correctIndex: 1,
+          explanation: "The key difference is that an agent uses tools (web search, analysis) in a loop to accomplish a multi-step goal. A chatbot just responds to messages - an agent actually takes action and iterates until the task is complete.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+      {
+        type: "concept",
+        topic: "ReAct Pattern",
+        difficulty: "beginner",
+        concept: {
+          title: "The ReAct Pattern: Think, Act, Observe",
+          content: `The ReAct pattern is the foundation of how modern AI agents work. It stands for Reasoning + Acting, and it's elegantly simple:
+
+1. THOUGHT: The agent reasons about what to do next ("I need to find nearby restaurants, so I'll use the map function")
+
+2. ACTION: The agent executes the step (calls the maps API)
+
+3. OBSERVATION: The agent processes the results ("There are two pizza places and one Indian restaurant")
+
+Then it loops back to THOUGHT, deciding what to do with this new information. This "chain-of-thought" approach dramatically improves AI performance by making the model explain its reasoning before acting.`,
+          keyTakeaway: "ReAct = Think, Act, Observe, Repeat. This loop lets agents break down complex tasks into manageable steps.",
+        },
+      },
+      {
+        type: "question",
+        topic: "ReAct Pattern",
+        difficulty: "beginner",
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          scenario: "You're building an AI travel assistant. A user asks: 'Plan me a weekend trip to Paris with good food and art museums.'",
+          question: "Following the ReAct pattern, what should happen FIRST?",
+          options: [
+            "Immediately book the cheapest flight",
+            "The agent thinks about what information it needs (flights, museums, restaurants)",
+            "Show the user a form to fill out",
+            "Display a list of all Paris hotels"
+          ],
+          correctIndex: 1,
+          explanation: "In ReAct, THOUGHT comes first. The agent needs to reason about the task - what are the sub-goals? What information is needed? Only after thinking does it take action. Jumping straight to booking would miss important considerations like dates, budget, and preferences.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+      {
+        type: "concept",
+        topic: "Agent Memory",
+        difficulty: "intermediate",
+        concept: {
+          title: "Memory Systems: Short-term vs Long-term",
+          content: `Agents need memory to work effectively. But here's the catch: you can't just dump everything into the AI's context window. Too much information can confuse the model.
+
+Short-term Memory holds the current conversation and immediate context. It's like your working memory - what you're actively thinking about right now.
+
+Long-term Memory persists across sessions. It includes:
+- User preferences and history
+- Knowledge bases and documents
+- Previous conversation summaries
+
+Smart agents use techniques like vector search to find relevant memories instead of loading everything at once. Think of it like how you don't remember every book you've read, but you can recall relevant information when you need it.`,
+          keyTakeaway: "Effective agents balance short-term context with selective retrieval from long-term memory - just like humans do.",
+        },
+      },
+      {
+        type: "question",
+        topic: "Agent Memory",
+        difficulty: "intermediate",
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          scenario: "An AI customer service agent needs to help a returning customer who had issues with a product 3 months ago.",
+          question: "How should the agent handle this customer's history?",
+          options: [
+            "Load all customer emails from the past year into the context",
+            "Start fresh with no memory of past interactions",
+            "Use vector search to retrieve only relevant past interactions",
+            "Ask the customer to explain everything from the beginning"
+          ],
+          correctIndex: 2,
+          explanation: "Vector search retrieves semantically relevant memories without overloading context. Loading everything would confuse the model and be slow. Starting fresh or asking the customer to repeat themselves creates a poor experience. Smart retrieval gives the agent just what it needs.",
+          difficulty: "intermediate",
+          creditsReward: 15,
+        },
+      },
+      {
+        type: "concept",
+        topic: "Tools & APIs",
+        difficulty: "beginner",
+        concept: {
+          title: "Tools: Extending What AI Can Do",
+          content: `AI models are great at thinking and generating text, but they can't actually DO things on their own. That's where tools come in.
+
+Tools are functions that let agents interact with the real world:
+- Search the web for current information
+- Query databases for specific data
+- Call APIs to send emails or create tasks
+- Execute code to perform calculations
+- Control browsers to navigate websites
+
+When you give an agent access to tools, you're essentially giving it hands to act in the world. The model decides WHEN to use a tool and WHAT inputs to provide - but the tool does the actual work.
+
+The more tools an agent has, the more capable it becomes. But with great power comes great responsibility - you need guardrails!`,
+          keyTakeaway: "Tools give AI agents the ability to act in the world - from searching to sending emails to executing code.",
+        },
+      },
+      {
+        type: "question",
+        topic: "Tools & APIs",
+        difficulty: "beginner",
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          scenario: "You're building an AI agent to help with data analysis. Users want it to query databases, create charts, and send results via email.",
+          question: "Which tools does this agent need?",
+          options: [
+            "Just a large language model is enough",
+            "Database query tool, charting/visualization tool, and email sending tool",
+            "Only a database tool - the AI can do the rest",
+            "No tools - modern AI can do all this natively"
+          ],
+          correctIndex: 1,
+          explanation: "AI models can reason about data but can't directly query databases, generate actual charts, or send emails. Each capability requires a specific tool. The model orchestrates WHEN and HOW to use each tool, but the tools do the actual work.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+      {
+        type: "concept",
+        topic: "Agent Architecture",
+        difficulty: "intermediate",
+        concept: {
+          title: "Multi-Agent Systems",
+          content: `Sometimes one agent isn't enough. Complex tasks benefit from multiple specialized agents working together.
+
+Imagine building a software development agent. Instead of one agent doing everything, you might have:
+- A Planner agent that breaks down requirements
+- A Coder agent that writes implementation
+- A Reviewer agent that checks for bugs
+- A Tester agent that validates the code
+
+This separation of concerns makes systems more reliable and easier to improve. Each agent can be optimized for its specific task.
+
+Multi-agent architectures also enable debates and consensus - when agents disagree, they can work through differences just like a team of humans would.
+
+Research shows multi-agent systems can improve performance by around 29% on complex benchmarks!`,
+          keyTakeaway: "Multi-agent systems divide complex tasks among specialized agents, improving reliability and performance.",
+        },
+      },
+      {
+        type: "question",
+        topic: "Agent Architecture",
+        difficulty: "intermediate",
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          scenario: "A company wants to automate their content creation pipeline: research topics, write articles, edit for quality, and publish.",
+          question: "Why might a multi-agent approach work better than a single agent?",
+          options: [
+            "It's always faster to use multiple agents",
+            "Each agent can specialize (researcher, writer, editor) and be optimized for its role",
+            "Single agents are not capable of any of these tasks",
+            "Multi-agent systems are simpler to build"
+          ],
+          correctIndex: 1,
+          explanation: "Specialization is the key benefit. A researcher agent can be tuned for finding facts, a writer for engaging prose, an editor for catching errors. Each can use different prompts, tools, and even models. This division of labor matches how human teams work - and it produces better results.",
+          difficulty: "intermediate",
+          creditsReward: 15,
+        },
+      },
+      {
+        type: "concept",
+        topic: "Agent Safety",
+        difficulty: "intermediate",
+        concept: {
+          title: "Guardrails: Keeping Agents Safe",
+          content: `Agents that can act in the world need guardrails. Without them, a well-intentioned agent might cause unintended harm.
+
+Key safety principles:
+
+1. Least Privilege: Only give agents the minimum tools and permissions they need. An agent that summarizes documents doesn't need database delete access.
+
+2. Human-in-the-Loop: For high-stakes actions (financial transactions, sending external communications), require human approval before executing.
+
+3. Session Isolation: Each agent session should be isolated so one compromised session can't affect others.
+
+4. Audit Trails: Log every action so you can understand what happened and why.
+
+5. Fail Safely: When something goes wrong, agents should stop and ask for help rather than guessing.
+
+Building trustworthy agents isn't just about capability - it's about predictable, controlled behavior.`,
+          keyTakeaway: "Safe agents use least privilege, human oversight for high-stakes actions, isolation, and comprehensive logging.",
+        },
+      },
+      {
+        type: "question",
+        topic: "Agent Safety",
+        difficulty: "intermediate",
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          scenario: "An AI agent has access to a company's customer database and email system. A prompt injection attack tries to make it email customer data to an external address.",
+          question: "Which guardrail would BEST prevent this attack?",
+          options: [
+            "Using a larger, smarter AI model",
+            "Requiring human approval before sending any external emails",
+            "Giving the agent more training data",
+            "Making the agent work faster"
+          ],
+          correctIndex: 1,
+          explanation: "Human-in-the-loop for high-stakes actions is the most effective guardrail here. Even if an attacker tricks the model, a human reviewer would catch the suspicious email before it's sent. Model size doesn't prevent prompt injection - proper controls do.",
+          difficulty: "intermediate",
+          creditsReward: 15,
+        },
+      },
+      {
+        type: "concept",
+        topic: "Code Execution",
+        difficulty: "advanced",
+        concept: {
+          title: "Code Interpreters: Agents That Code",
+          content: `One of the most powerful tools an agent can have is the ability to write and execute code. This is called a Code Interpreter.
+
+When an agent can run code, it can:
+- Perform complex calculations and data transformations
+- Analyze datasets and create visualizations
+- Test hypotheses by running experiments
+- Automate repetitive tasks with scripts
+
+But running arbitrary code is dangerous! That's why code interpreters use sandboxed environments - isolated containers where code runs safely without access to the host system.
+
+Modern approaches use microVMs (tiny virtual machines) that spin up in milliseconds, run the code, and are destroyed. Even if malicious code executes, it can't escape the sandbox.
+
+This pattern powers tools like ChatGPT's Code Interpreter and many enterprise AI solutions.`,
+          keyTakeaway: "Code interpreters let agents write and run code in secure sandboxes, enabling powerful data analysis and automation.",
+        },
+      },
+      {
+        type: "question",
+        topic: "Code Execution",
+        difficulty: "advanced",
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          scenario: "An AI data analyst agent needs to process a large CSV file, find anomalies, and create a visualization. The agent writes Python code to do this.",
+          question: "Why is sandboxed code execution critical for this use case?",
+          options: [
+            "It makes the code run faster",
+            "The code might have bugs or be manipulated to access sensitive systems",
+            "Python requires a sandbox to work",
+            "It's just a best practice with no real benefit"
+          ],
+          correctIndex: 1,
+          explanation: "Even well-intentioned code can have bugs, and prompt injection could trick the agent into writing malicious code. A sandbox ensures that whatever code runs can't access the host system, other users' data, or network resources it shouldn't have. It's a critical security boundary.",
+          difficulty: "advanced",
+          creditsReward: 20,
+        },
+      },
+    ];
+
+    this.learningCards = cards.map(card => ({
+      ...card,
+      id: randomUUID(),
+    }));
+
     const modulesData: Omit<Module, "id">[] = [
       {
-        title: "Introduction to AI",
-        description: "Learn the fundamentals of Artificial Intelligence, including key concepts and real-world applications.",
-        icon: "brain",
+        title: "AI Agents Fundamentals",
+        description: "Understanding what AI agents are and how they work.",
+        icon: "bot",
         order: 1,
         isLocked: false,
-      },
-      {
-        title: "Machine Learning Basics",
-        description: "Understand how machines learn from data through supervised and unsupervised learning techniques.",
-        icon: "sparkles",
-        order: 2,
-        isLocked: false,
-      },
-      {
-        title: "AI Agents & Workflows",
-        description: "Discover how AI agents work autonomously and orchestrate complex workflows.",
-        icon: "bot",
-        order: 3,
-        isLocked: true,
-      },
-      {
-        title: "Prompt Engineering",
-        description: "Master the art of crafting effective prompts to get the best results from AI models.",
-        icon: "message",
-        order: 4,
-        isLocked: true,
       },
     ];
 
@@ -92,304 +390,59 @@ export class MemStorage implements IStorage {
       const id = randomUUID();
       this.modules.set(id, { ...mod, id });
     });
+  }
 
-    const moduleIds = Array.from(this.modules.keys());
+  async getCurrentLearningCard(): Promise<LearningCard | null> {
+    if (this.currentCardIndex >= this.learningCards.length) {
+      return null;
+    }
+    
+    const user = await this.getDefaultUser();
+    const card = this.learningCards[this.currentCardIndex];
+    
+    if (card.difficulty === "advanced" && user.currentLevel === "beginner") {
+      const beginnerCards = this.learningCards.filter(c => c.difficulty === "beginner");
+      const nextBeginner = beginnerCards.find(c => !this.completedCardIds.has(c.id));
+      return nextBeginner || card;
+    }
+    
+    if (card.difficulty === "intermediate" && user.currentLevel === "beginner") {
+      if (user.totalCorrect < 3) {
+        const beginnerCards = this.learningCards.filter(c => c.difficulty === "beginner");
+        const nextBeginner = beginnerCards.find(c => !this.completedCardIds.has(c.id));
+        return nextBeginner || card;
+      }
+    }
+    
+    return card;
+  }
 
-    const lessonsData: { moduleId: string; lessons: Omit<Lesson, "id" | "moduleId">[] }[] = [
-      {
-        moduleId: moduleIds[0],
-        lessons: [
-          {
-            title: "What is Artificial Intelligence?",
-            theory: `Artificial Intelligence (AI) is the simulation of human intelligence processes by machines, especially computer systems. These processes include learning, reasoning, and self-correction.
+  async advanceToNextCard(): Promise<void> {
+    const currentCard = await this.getCurrentLearningCard();
+    if (currentCard) {
+      this.completedCardIds.add(currentCard.id);
+    }
+    
+    this.currentCardIndex++;
+    
+    const user = await this.getDefaultUser();
+    const accuracy = user.totalAnswered > 0 
+      ? (user.totalCorrect / user.totalAnswered) * 100 
+      : 0;
+    
+    if (accuracy >= 80 && user.currentLevel === "beginner" && user.totalAnswered >= 3) {
+      await this.updateUserLevel(user.id, "intermediate");
+    } else if (accuracy >= 90 && user.currentLevel === "intermediate" && user.totalAnswered >= 6) {
+      await this.updateUserLevel(user.id, "advanced");
+    }
+  }
 
-AI systems can perform tasks that typically require human intelligence, such as visual perception, speech recognition, decision-making, and language translation.
+  async getTodayProgress(): Promise<number> {
+    return this.completedCardIds.size;
+  }
 
-The field of AI was founded in 1956 at a conference at Dartmouth College. Since then, AI has evolved from simple rule-based systems to complex neural networks that can learn from vast amounts of data.
-
-Today, AI is everywhere - from the recommendations you see on streaming platforms to the virtual assistants on your phone. Understanding AI is becoming essential in our increasingly digital world.`,
-            order: 1,
-            difficulty: "beginner",
-          },
-          {
-            title: "Types of AI Systems",
-            theory: `AI systems can be categorized into different types based on their capabilities and how they function.
-
-Narrow AI (Weak AI) is designed for specific tasks. Examples include voice assistants, recommendation systems, and image recognition. This is the most common type of AI today.
-
-General AI (Strong AI) would have human-level intelligence across all domains. This remains theoretical and is a major goal of AI research.
-
-Reactive machines respond to current situations without memory of past events. Deep Blue, the chess-playing computer, is an example.
-
-Limited memory AI can use past experiences to inform future decisions. Self-driving cars use this type of AI.
-
-Theory of mind AI would understand emotions and beliefs - still largely in research phase.`,
-            order: 2,
-            difficulty: "beginner",
-          },
-          {
-            title: "Real-World AI Applications",
-            theory: `AI has transformed numerous industries and continues to create new possibilities every day.
-
-Healthcare: AI assists in diagnosing diseases, discovering drugs, and personalizing treatment plans. Medical imaging AI can detect conditions that might be missed by human eyes.
-
-Finance: Banks use AI for fraud detection, credit scoring, and algorithmic trading. AI chatbots handle customer service inquiries.
-
-Transportation: Self-driving vehicles, route optimization, and traffic prediction all rely on AI systems.
-
-Entertainment: Streaming services use AI to recommend content. Video games use AI for realistic NPC behavior.
-
-Education: Adaptive learning platforms personalize education. AI tutors provide one-on-one assistance.
-
-The key to understanding AI applications is recognizing that AI excels at pattern recognition and can process vast amounts of data much faster than humans.`,
-            order: 3,
-            difficulty: "intermediate",
-          },
-        ],
-      },
-      {
-        moduleId: moduleIds[1],
-        lessons: [
-          {
-            title: "Understanding Machine Learning",
-            theory: `Machine Learning (ML) is a subset of AI that enables systems to learn and improve from experience without being explicitly programmed.
-
-Instead of following pre-written rules, ML algorithms build models based on sample data (training data) to make predictions or decisions.
-
-The key insight is that we teach machines through examples rather than instructions. Show a model thousands of pictures of cats and dogs, and it learns to distinguish between them.
-
-There are three main types of machine learning:
-1. Supervised Learning - Learning from labeled examples
-2. Unsupervised Learning - Finding patterns in unlabeled data  
-3. Reinforcement Learning - Learning through trial and error with rewards
-
-Machine learning powers many AI applications you use daily, from spam filters to product recommendations.`,
-            order: 1,
-            difficulty: "beginner",
-          },
-          {
-            title: "Supervised vs Unsupervised Learning",
-            theory: `Supervised Learning is like learning with a teacher. The algorithm is trained on labeled data, meaning each example comes with the correct answer.
-
-Example: Predicting house prices. You show the model many houses with their features (size, location, bedrooms) and their actual prices. The model learns the relationship between features and price.
-
-Common supervised learning tasks:
-- Classification (Is this email spam or not?)
-- Regression (What will be the temperature tomorrow?)
-
-Unsupervised Learning works without labels. The algorithm finds hidden patterns or structures in data on its own.
-
-Example: Customer segmentation. Given purchase data, the algorithm groups similar customers together without being told what groups to look for.
-
-Common unsupervised learning tasks:
-- Clustering (Group similar items)
-- Dimensionality reduction (Simplify complex data)
-
-Both approaches are powerful tools in the ML toolkit, chosen based on the problem and available data.`,
-            order: 2,
-            difficulty: "intermediate",
-          },
-        ],
-      },
-    ];
-
-    lessonsData.forEach(({ moduleId, lessons }) => {
-      lessons.forEach((lesson) => {
-        const id = randomUUID();
-        this.lessons.set(id, { ...lesson, id, moduleId });
-      });
-    });
-
-    const lessonIds = Array.from(this.lessons.keys());
-
-    const questionsData: { lessonId: string; questions: Omit<Question, "id" | "lessonId">[] }[] = [
-      {
-        lessonId: lessonIds[0],
-        questions: [
-          {
-            scenario: "You're explaining AI to a friend who has never heard of it before. They ask what AI actually does.",
-            question: "Which statement best describes what Artificial Intelligence is?",
-            options: [
-              "A robot that looks and acts exactly like a human",
-              "The simulation of human intelligence processes by computer systems",
-              "A super-fast calculator that only does math",
-              "A programming language used to build websites"
-            ],
-            correctIndex: 1,
-            explanation: "AI refers to the simulation of human intelligence by machines. This includes learning from data, reasoning through problems, and self-correction. It's not just robots or calculators - it's about machines that can perform cognitive tasks.",
-            difficulty: "beginner",
-            creditsReward: 10,
-          },
-          {
-            scenario: "A company wants to implement AI but isn't sure what tasks AI can help with.",
-            question: "Which of these is NOT typically considered an AI capability?",
-            options: [
-              "Recognizing faces in photos",
-              "Translating text between languages",
-              "Generating creative electricity",
-              "Making recommendations based on preferences"
-            ],
-            correctIndex: 2,
-            explanation: "AI can recognize faces, translate languages, and make personalized recommendations. However, 'generating creative electricity' isn't an AI task - it's a physical process that requires actual power generation equipment, not intelligence.",
-            difficulty: "beginner",
-            creditsReward: 10,
-          },
-          {
-            scenario: "You're at a job interview and the interviewer asks about the history of AI.",
-            question: "When was the field of Artificial Intelligence officially founded?",
-            options: [
-              "1920 during the industrial revolution",
-              "1956 at the Dartmouth Conference",
-              "1995 when the internet became popular",
-              "2010 when smartphones became common"
-            ],
-            correctIndex: 1,
-            explanation: "The field of AI was officially founded in 1956 at a conference at Dartmouth College. This historic event brought together researchers who coined the term 'Artificial Intelligence' and laid the groundwork for the field.",
-            difficulty: "beginner",
-            creditsReward: 10,
-          },
-        ],
-      },
-      {
-        lessonId: lessonIds[1],
-        questions: [
-          {
-            scenario: "A startup is building an AI that can master any task a human can do, from cooking to coding.",
-            question: "What type of AI is this startup trying to create?",
-            options: [
-              "Narrow AI - designed for specific tasks",
-              "General AI - human-level intelligence across all domains",
-              "Reactive machines - responds without memory",
-              "Limited memory AI - uses past experiences"
-            ],
-            correctIndex: 1,
-            explanation: "General AI (also called Strong AI) would have human-level intelligence across all domains. This is what the startup is attempting - an AI that can do anything a human can. This remains theoretical and is a major goal of AI research.",
-            difficulty: "intermediate",
-            creditsReward: 15,
-          },
-          {
-            scenario: "Your smart speaker understands your voice commands and plays music, but it can't help you with unrelated tasks like cooking.",
-            question: "What type of AI does your smart speaker represent?",
-            options: [
-              "General AI",
-              "Narrow AI",
-              "Super AI",
-              "Conscious AI"
-            ],
-            correctIndex: 1,
-            explanation: "Smart speakers use Narrow AI (also called Weak AI), which is designed for specific tasks like understanding voice commands and playing music. They excel at their designated functions but cannot perform tasks outside their programming.",
-            difficulty: "beginner",
-            creditsReward: 10,
-          },
-        ],
-      },
-      {
-        lessonId: lessonIds[2],
-        questions: [
-          {
-            scenario: "A hospital wants to use AI to help doctors detect early signs of cancer in medical scans.",
-            question: "Which AI application category does this fall under?",
-            options: [
-              "Entertainment",
-              "Healthcare",
-              "Finance",
-              "Transportation"
-            ],
-            correctIndex: 1,
-            explanation: "This is a Healthcare AI application. AI in healthcare helps diagnose diseases, analyze medical images, and assist doctors in making better decisions. Cancer detection from medical scans is one of the most impactful uses of AI in medicine.",
-            difficulty: "beginner",
-            creditsReward: 10,
-          },
-          {
-            scenario: "Netflix shows you movie recommendations based on what you've watched before.",
-            question: "What makes AI particularly good at providing these recommendations?",
-            options: [
-              "AI can read your mind",
-              "AI excels at pattern recognition and processing large amounts of data",
-              "AI randomly guesses what you might like",
-              "AI asks other users what you should watch"
-            ],
-            correctIndex: 1,
-            explanation: "AI excels at pattern recognition - it can analyze your viewing history, compare it with millions of other users, and find patterns that predict what you'll enjoy. This ability to process vast amounts of data is a key strength of AI systems.",
-            difficulty: "intermediate",
-            creditsReward: 15,
-          },
-        ],
-      },
-      {
-        lessonId: lessonIds[3],
-        questions: [
-          {
-            scenario: "You're building an app that predicts house prices based on historical sales data where each house has a known price.",
-            question: "What type of machine learning approach should you use?",
-            options: [
-              "Unsupervised learning - the data has no labels",
-              "Supervised learning - you have labeled examples",
-              "Reinforcement learning - the AI learns through rewards",
-              "No machine learning is needed"
-            ],
-            correctIndex: 1,
-            explanation: "Supervised learning is the right choice here because you have labeled data - each house comes with its actual selling price. The model learns from these examples to predict prices for new houses.",
-            difficulty: "beginner",
-            creditsReward: 10,
-          },
-          {
-            scenario: "An e-commerce company has millions of customers but doesn't know how to group them.",
-            question: "If they want AI to find natural customer segments without pre-defined categories, which approach should they use?",
-            options: [
-              "Supervised learning with labeled customer types",
-              "Unsupervised learning to discover patterns",
-              "Asking each customer which group they belong to",
-              "Randomly assigning customers to groups"
-            ],
-            correctIndex: 1,
-            explanation: "Unsupervised learning is perfect for this! Without pre-defined labels, unsupervised algorithms can analyze customer behavior and automatically discover natural groupings (clusters) based on similarities in the data.",
-            difficulty: "intermediate",
-            creditsReward: 15,
-          },
-        ],
-      },
-      {
-        lessonId: lessonIds[4],
-        questions: [
-          {
-            scenario: "A spam filter needs to learn from emails that are already marked as 'spam' or 'not spam'.",
-            question: "This is an example of which type of machine learning task?",
-            options: [
-              "Regression - predicting a continuous value",
-              "Classification - categorizing into discrete groups",
-              "Clustering - finding natural groupings",
-              "Dimensionality reduction - simplifying data"
-            ],
-            correctIndex: 1,
-            explanation: "This is a Classification task. The model learns to categorize emails into discrete groups (spam vs. not spam). Classification is a supervised learning approach where the output is a category or label.",
-            difficulty: "intermediate",
-            creditsReward: 15,
-          },
-          {
-            scenario: "A weather service wants to predict tomorrow's exact temperature based on historical data.",
-            question: "What type of supervised learning task is this?",
-            options: [
-              "Classification - assigning categories",
-              "Regression - predicting continuous values",
-              "Clustering - grouping similar items",
-              "Dimensionality reduction"
-            ],
-            correctIndex: 1,
-            explanation: "This is a Regression task. Unlike classification which predicts categories, regression predicts continuous numerical values - in this case, the exact temperature. The model learns the relationship between weather features and temperature values.",
-            difficulty: "intermediate",
-            creditsReward: 15,
-          },
-        ],
-      },
-    ];
-
-    questionsData.forEach(({ lessonId, questions }) => {
-      questions.forEach((question) => {
-        const id = randomUUID();
-        this.questions.set(id, { ...question, id, lessonId });
-      });
-    });
+  async getTotalCards(): Promise<number> {
+    return this.learningCards.length;
   }
 
   async getUser(id: string): Promise<User | undefined> {
