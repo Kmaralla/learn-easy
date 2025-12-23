@@ -3,13 +3,15 @@
 ## Overview
 Learn-AI is an innovative learning platform that teaches AI concepts through an adaptive, quiz-style experience. Instead of traditional module-based courses, it presents one learning card at a time, adapting difficulty based on user performance.
 
-## Current State
-Redesigned MVP with:
-- Single-card learning experience (no module navigation)
-- AI Agents content from Amazon Science (ReAct pattern, Memory, Tools, Multi-agent systems)
-- Adaptive difficulty: content adjusts based on user accuracy
-- Gamification: credits, streaks, accuracy tracking
-- Clean, focused UI with minimal distractions
+## Current State (Dec 2024)
+Enhanced MVP with:
+- User login with name capture (localStorage persistence)
+- Extended lesson format: 2 theory pages (concept + real-world example) + 1 quiz per lesson
+- Step progress indicators (1/3, 2/3, 3/3) showing position within each lesson
+- Prominent difficulty level badges with color coding (beginner=blue, intermediate=amber, advanced=emerald)
+- Score/accuracy tracking in header
+- Adaptive difficulty: unlock intermediate at 80% accuracy (3+ questions), advanced at 90% (6+ questions)
+- 7 complete lessons covering AI Agents fundamentals
 
 ## Tech Stack
 - **Frontend**: React + TypeScript, Vite, TailwindCSS, Shadcn/ui, Framer Motion
@@ -18,12 +20,15 @@ Redesigned MVP with:
 - **Styling**: Custom design system with Inter font
 
 ## Learning Flow
-1. User sees a **concept card** with theory and key takeaway
-2. User clicks "Test Your Knowledge"
-3. User answers a **scenario-based question**
-4. Immediate feedback with explanation
-5. System advances to next card
-6. Difficulty adapts based on performance
+1. User enters their name to start (stored in localStorage)
+2. User sees a **concept card** with theory and key takeaway (Step 1/3)
+3. User clicks "Continue to Example"
+4. User sees an **example card** with real-world scenario and application (Step 2/3)
+5. User clicks "Ready for Quiz"
+6. User answers a **scenario-based question** (Step 3/3)
+7. Immediate feedback with explanation
+8. System advances to next lesson
+9. Difficulty adapts based on performance (80% -> intermediate, 90% -> advanced)
 
 ## Adaptive System
 - Beginners see only beginner content initially
