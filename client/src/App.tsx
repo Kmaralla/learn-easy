@@ -11,6 +11,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Progress from "@/pages/progress";
 import Profile from "@/pages/profile";
+import AdminPage from "@/pages/admin";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/progress" component={Progress} />
       <Route path="/profile" component={Profile} />
+      <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -35,6 +37,11 @@ function AppContent() {
   };
 
   const isLearningPage = location === "/";
+  const isAdminPage = location === "/admin";
+
+  if (isAdminPage) {
+    return <Router />;
+  }
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>

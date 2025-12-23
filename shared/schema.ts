@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -10,6 +10,55 @@ export const users = pgTable("users", {
   totalCorrect: integer("total_correct").notNull().default(0),
   totalAnswered: integer("total_answered").notNull().default(0),
   currentLevel: text("current_level").notNull().default("beginner"),
+});
+
+export const adminUsers = pgTable("admin_users", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const contentSources = pgTable("content_sources", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  title: text("title").notNull(),
+  url: text("url"),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const topics = pgTable("topics", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  sourceId: varchar("source_id", { length: 36 }),
+  title: text("title").notNull(),
+  description: text("description"),
+  order: integer("order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const concepts = pgTable("concepts", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  topicId: varchar("topic_id", { length: 36 }).notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  keyTakeaway: text("key_takeaway").notNull(),
+  difficulty: text("difficulty").notNull().default("beginner"),
+  order: integer("order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const conceptQuestions = pgTable("concept_questions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  conceptId: varchar("concept_id", { length: 36 }).notNull(),
+  scenario: text("scenario"),
+  question: text("question").notNull(),
+  options: jsonb("options").notNull().$type<string[]>(),
+  correctIndex: integer("correct_index").notNull(),
+  explanation: text("explanation").notNull(),
+  difficulty: text("difficulty").notNull().default("beginner"),
+  creditsReward: integer("credits_reward").notNull().default(10),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const modules = pgTable("modules", {
@@ -52,13 +101,29 @@ export const userProgress = pgTable("user_progress", {
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+export const insertAdminUserSchema = createInsertSchema(adminUsers).omit({ id: true, createdAt: true });
+export const insertContentSourceSchema = createInsertSchema(contentSources).omit({ id: true, createdAt: true });
+export const insertTopicSchema = createInsertSchema(topics).omit({ id: true });
+export const insertConceptSchema = createInsertSchema(concepts).omit({ id: true });
+export const insertConceptQuestionSchema = createInsertSchema(conceptQuestions).omit({ id: true });
 export const insertModuleSchema = createInsertSchema(modules).omit({ id: true });
 export const insertLessonSchema = createInsertSchema(lessons).omit({ id: true });
 export const insertQuestionSchema = createInsertSchema(questions).omit({ id: true });
 export const insertUserProgressSchema = createInsertSchema(userProgress).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
+export type InsertContentSource = z.infer<typeof insertContentSourceSchema>;
+export type InsertTopic = z.infer<typeof insertTopicSchema>;
+export type InsertConcept = z.infer<typeof insertConceptSchema>;
+export type InsertConceptQuestion = z.infer<typeof insertConceptQuestionSchema>;
+
 export type User = typeof users.$inferSelect;
+export type AdminUser = typeof adminUsers.$inferSelect;
+export type ContentSource = typeof contentSources.$inferSelect;
+export type Topic = typeof topics.$inferSelect;
+export type Concept = typeof concepts.$inferSelect;
+export type ConceptQuestion = typeof conceptQuestions.$inferSelect;
 export type Module = typeof modules.$inferSelect;
 export type Lesson = typeof lessons.$inferSelect;
 export type Question = typeof questions.$inferSelect;

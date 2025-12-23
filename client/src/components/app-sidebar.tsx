@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, BookOpen, BarChart3, User, Coins } from "lucide-react";
+import { Home, BarChart3, User, Coins, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ const menuItems = [
   { title: "Learn", url: "/", icon: Home },
   { title: "Progress", url: "/progress", icon: BarChart3 },
   { title: "Profile", url: "/profile", icon: User },
+  { title: "Admin", url: "/admin", icon: Settings },
 ];
 
 type AppSidebarProps = {
