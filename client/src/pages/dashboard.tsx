@@ -39,7 +39,6 @@ export default function Dashboard() {
   const [hasAnswered, setHasAnswered] = useState(false);
   const [showReward, setShowReward] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(0);
-  const [showConcept, setShowConcept] = useState(true);
 
   const { data, isLoading, refetch } = useQuery<LearningData>({
     queryKey: ["/api/learn"],
@@ -62,7 +61,6 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
       setSelectedAnswer(null);
       setHasAnswered(false);
-      setShowConcept(true);
     },
   });
 
@@ -94,8 +92,8 @@ export default function Dashboard() {
   }, [nextCardMutation]);
 
   const handleStartQuestions = useCallback(() => {
-    setShowConcept(false);
-  }, []);
+    nextCardMutation.mutate();
+  }, [nextCardMutation]);
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -111,10 +109,10 @@ export default function Dashboard() {
     : 0;
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="min-h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
       <CreditReward amount={rewardAmount} isVisible={showReward} />
       
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b">
+      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -157,8 +155,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-2xl">
+      <div className="flex-1 flex items-center justify-center px-4 py-8 relative">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+        </div>
+        <div className="w-full max-w-2xl relative z-10">
           <AnimatePresence mode="wait">
             {!currentCard ? (
               <motion.div
@@ -180,7 +182,7 @@ export default function Dashboard() {
                   Learn More
                 </Button>
               </motion.div>
-            ) : currentCard.type === "concept" && showConcept && currentCard.concept ? (
+            ) : currentCard.type === "concept" && currentCard.concept ? (
               <motion.div
                 key={`concept-${currentCard.id}`}
                 initial={{ opacity: 0, y: 20 }}
@@ -188,8 +190,8 @@ export default function Dashboard() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <Card className="overflow-hidden">
-                  <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-1">
+                <Card className="overflow-hidden shadow-lg border-primary/10">
+                  <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-0.5">
                     <CardContent className="p-6 sm:p-8 bg-card rounded-md">
                       <div className="flex items-center gap-2 mb-4">
                         <Badge variant="outline" className="text-xs">
@@ -228,9 +230,10 @@ export default function Dashboard() {
                         className="w-full" 
                         size="lg"
                         onClick={handleStartQuestions}
+                        disabled={nextCardMutation.isPending}
                         data-testid="button-start-questions"
                       >
-                        Test Your Knowledge
+                        {nextCardMutation.isPending ? "Loading..." : "Test Your Knowledge"}
                         <ChevronRight className="h-4 w-4 ml-2" />
                       </Button>
                     </CardContent>
@@ -245,7 +248,7 @@ export default function Dashboard() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <Card className="overflow-hidden">
+                <Card className="overflow-hidden shadow-lg">
                   <CardContent className="p-6 sm:p-8">
                     <div className="flex items-center gap-2 mb-4">
                       <Badge variant="outline" className="text-xs">
