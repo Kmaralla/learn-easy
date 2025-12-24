@@ -2,17 +2,36 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw, BookOpen, Sparkles, User } from "lucide-react";
+import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw, BookOpen, Sparkles, User, Trophy, RefreshCw, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { CreditReward } from "@/components/credit-reward";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { User as UserType, Question } from "@shared/schema";
+
+type DailyMission = {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  target: number;
+  current: number;
+  reward: number;
+  completed: boolean;
+};
+
+type DailyPlan = {
+  hasNewLesson: boolean;
+  reviewCount: number;
+  missions: DailyMission[];
+  allLessonsComplete: boolean;
+};
 
 type LearningData = {
   user: UserType;
@@ -39,6 +58,8 @@ type LearningData = {
   streak: number;
   todayProgress: number;
   totalCards: number;
+  dailyPlan?: DailyPlan;
+  isInReviewMode?: boolean;
 };
 
 export default function Dashboard() {
@@ -72,7 +93,7 @@ export default function Dashboard() {
   });
 
   const submitAnswerMutation = useMutation({
-    mutationFn: async (payload: { questionId: string; isCorrect: boolean; creditsEarned: number }) => {
+    mutationFn: async (payload: { questionId: string; isCorrect: boolean; creditsEarned: number; lessonIndex: number }) => {
       return apiRequest("POST", "/api/answer", payload);
     },
     onSuccess: () => {
@@ -83,6 +104,28 @@ export default function Dashboard() {
   const nextCardMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("POST", "/api/next-card", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
+      setSelectedAnswer(null);
+      setHasAnswered(false);
+    },
+  });
+
+  const startReviewMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/start-review", {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
+      setSelectedAnswer(null);
+      setHasAnswered(false);
+    },
+  });
+
+  const exitReviewMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/exit-review", {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/learn"] });
@@ -119,8 +162,17 @@ export default function Dashboard() {
       questionId: question.id,
       isCorrect,
       creditsEarned: earned,
+      lessonIndex: data.currentCard.lessonIndex,
     });
   }, [hasAnswered, data, submitAnswerMutation]);
+
+  const handleStartReview = useCallback(() => {
+    startReviewMutation.mutate();
+  }, [startReviewMutation]);
+
+  const handleExitReview = useCallback(() => {
+    exitReviewMutation.mutate();
+  }, [exitReviewMutation]);
 
   const handleNext = useCallback(() => {
     nextCardMutation.mutate();
@@ -306,19 +358,83 @@ export default function Dashboard() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="text-center py-12"
+                className="space-y-6"
               >
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 mb-6">
-                  <Check className="h-10 w-10 text-emerald-500" />
+                <Card className="overflow-hidden">
+                  <CardContent className="p-6 text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 mb-4">
+                      <Trophy className="h-8 w-8 text-emerald-500" />
+                    </div>
+                    <h2 className="text-xl font-bold mb-2">Great job, {userName}!</h2>
+                    <p className="text-muted-foreground text-sm">
+                      You've completed all available lessons. Here's your daily plan:
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {data.dailyPlan && data.dailyPlan.missions.length > 0 && (
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Star className="h-5 w-5 text-amber-500" />
+                        <h3 className="font-semibold">Today's Missions</h3>
+                      </div>
+                      <div className="space-y-4">
+                        {data.dailyPlan.missions.map((mission) => (
+                          <div 
+                            key={mission.id} 
+                            className={`p-4 rounded-md border ${mission.completed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-muted/50'}`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2">
+                                {mission.completed ? (
+                                  <Check className="h-4 w-4 text-emerald-500" />
+                                ) : (
+                                  <Target className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <span className="font-medium text-sm">{mission.title}</span>
+                              </div>
+                              <Badge className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30">
+                                +{mission.reward} credits
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-2">{mission.description}</p>
+                            <Progress value={(mission.current / mission.target) * 100} className="h-1.5" />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {mission.current}/{mission.target}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {data.dailyPlan && data.dailyPlan.reviewCount > 0 && (
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <RefreshCw className="h-5 w-5 text-primary" />
+                        <h3 className="font-semibold">Review Mode</h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        You have {data.dailyPlan.reviewCount} question{data.dailyPlan.reviewCount !== 1 ? 's' : ''} ready for review. 
+                        Practice makes perfect!
+                      </p>
+                      <Button onClick={handleStartReview} className="w-full" data-testid="button-start-review">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Start Review
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="text-center pt-2">
+                  <Button variant="outline" onClick={() => refetch()} data-testid="button-refresh">
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Great job, {userName}!</h2>
-                <p className="text-muted-foreground mb-6">
-                  You've completed today's learning session.
-                </p>
-                <Button onClick={() => refetch()} data-testid="button-learn-more">
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Learn More
-                </Button>
               </motion.div>
             ) : currentCard.type === "concept" && currentCard.concept ? (
               <motion.div

@@ -24,6 +24,31 @@ type LearningCard = {
   question?: Question;
 };
 
+type AnswerHistory = {
+  questionId: string;
+  lessonIndex: number;
+  isCorrect: boolean;
+  answeredAt: Date;
+  reviewCount: number;
+};
+
+type ReviewSession = {
+  entries: Array<{ questionId: string; lessonIndex: number }>;
+  cursor: number;
+  startedAt: Date | null;
+};
+
+type DailyMission = {
+  id: string;
+  type: "answer_correct" | "complete_lessons" | "earn_credits" | "maintain_streak";
+  title: string;
+  description: string;
+  target: number;
+  current: number;
+  reward: number;
+  completed: boolean;
+};
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -58,6 +83,13 @@ export class MemStorage implements IStorage {
   private learningCards: LearningCard[];
   private currentCardIndex: number;
   private completedCardIds: Set<string>;
+  
+  private answerHistory: AnswerHistory[];
+  private dailyMissions: DailyMission[];
+  private lastMissionReset: Date;
+  private reviewSession: ReviewSession;
+  private todayCreditsEarned: number;
+  private todayLessonsCompleted: number;
 
   constructor() {
     this.users = new Map();
@@ -68,6 +100,13 @@ export class MemStorage implements IStorage {
     this.learningCards = [];
     this.currentCardIndex = 0;
     this.completedCardIds = new Set();
+    
+    this.answerHistory = [];
+    this.dailyMissions = [];
+    this.lastMissionReset = new Date();
+    this.reviewSession = { entries: [], cursor: 0, startedAt: null };
+    this.todayCreditsEarned = 0;
+    this.todayLessonsCompleted = 0;
     
     this.defaultUserId = randomUUID();
     this.initializeData();
@@ -595,9 +634,21 @@ All this runs in a secure sandbox - the code can't access anything outside its c
   }
 
   async advanceToNextCard(): Promise<void> {
+    if (this.reviewSession.startedAt !== null) {
+      this.reviewSession.cursor++;
+      if (this.reviewSession.cursor >= this.reviewSession.entries.length) {
+        this.reviewSession = { entries: [], cursor: 0, startedAt: null };
+      }
+      return;
+    }
+    
     const currentCard = await this.getCurrentLearningCard();
     if (currentCard) {
       this.completedCardIds.add(currentCard.id);
+      
+      if (currentCard.type === "question") {
+        this.updateMissionProgress("complete_lessons", 1);
+      }
     }
     
     this.currentCardIndex++;
@@ -778,6 +829,199 @@ All this runs in a secure sandbox - the code can't access anything outside its c
     }
 
     return null;
+  }
+
+  async recordAnswer(questionId: string, lessonIndex: number, isCorrect: boolean): Promise<void> {
+    const existing = this.answerHistory.find(a => a.questionId === questionId);
+    if (existing) {
+      existing.isCorrect = isCorrect;
+      existing.answeredAt = new Date();
+      existing.reviewCount += 1;
+    } else {
+      this.answerHistory.push({
+        questionId,
+        lessonIndex,
+        isCorrect,
+        answeredAt: new Date(),
+        reviewCount: 0,
+      });
+    }
+    
+    if (isCorrect) {
+      this.updateMissionProgress("answer_correct", 1);
+    }
+  }
+
+  async getReviewQuestions(): Promise<LearningCard[]> {
+    const now = new Date();
+    const reviewCards: LearningCard[] = [];
+    
+    for (const answer of this.answerHistory) {
+      if (!answer.isCorrect) {
+        const card = this.learningCards.find(
+          c => c.type === "question" && c.lessonIndex === answer.lessonIndex
+        );
+        if (card) {
+          reviewCards.push(card);
+        }
+      } else {
+        const hoursSince = (now.getTime() - answer.answeredAt.getTime()) / (1000 * 60 * 60);
+        const reviewIntervals = [24, 72, 168];
+        const interval = reviewIntervals[Math.min(answer.reviewCount, reviewIntervals.length - 1)];
+        
+        if (hoursSince >= interval) {
+          const card = this.learningCards.find(
+            c => c.type === "question" && c.lessonIndex === answer.lessonIndex
+          );
+          if (card) {
+            reviewCards.push(card);
+          }
+        }
+      }
+    }
+    
+    return reviewCards.slice(0, 5);
+  }
+
+  async startReviewMode(): Promise<void> {
+    const reviewCandidates = await this.getReviewQuestions();
+    if (reviewCandidates.length > 0) {
+      this.reviewSession = {
+        entries: reviewCandidates.map(card => ({
+          questionId: card.question?.id || card.id,
+          lessonIndex: card.lessonIndex,
+        })),
+        cursor: 0,
+        startedAt: new Date(),
+      };
+    } else {
+      this.reviewSession = { entries: [], cursor: 0, startedAt: null };
+    }
+  }
+
+  async exitReviewMode(): Promise<void> {
+    this.reviewSession = { entries: [], cursor: 0, startedAt: null };
+  }
+
+  async getIsInReviewMode(): Promise<boolean> {
+    return this.reviewSession.startedAt !== null;
+  }
+
+  async getReviewSessionLength(): Promise<number> {
+    return this.reviewSession.entries.length - this.reviewSession.cursor;
+  }
+
+  async getCurrentReviewCard(): Promise<LearningCard | null> {
+    if (this.reviewSession.startedAt === null) {
+      return null;
+    }
+    
+    const entry = this.reviewSession.entries[this.reviewSession.cursor];
+    if (!entry) {
+      return null;
+    }
+    
+    const card = this.learningCards.find(
+      c => c.type === "question" && 
+           c.lessonIndex === entry.lessonIndex && 
+           c.question?.id === entry.questionId
+    );
+    
+    if (card) {
+      return card;
+    }
+    
+    return this.learningCards.find(
+      c => c.type === "question" && c.lessonIndex === entry.lessonIndex
+    ) || null;
+  }
+
+  private generateDailyMissions(): void {
+    const missionTemplates = [
+      { type: "answer_correct" as const, title: "Quick Learner", description: "Answer 3 questions correctly", target: 3, reward: 15 },
+      { type: "answer_correct" as const, title: "Knowledge Seeker", description: "Answer 5 questions correctly", target: 5, reward: 25 },
+      { type: "complete_lessons" as const, title: "Lesson Master", description: "Complete 2 lessons", target: 2, reward: 20 },
+      { type: "earn_credits" as const, title: "Credit Collector", description: "Earn 30 credits today", target: 30, reward: 15 },
+    ];
+    
+    const shuffled = missionTemplates.sort(() => Math.random() - 0.5);
+    this.dailyMissions = shuffled.slice(0, 3).map((template, i) => ({
+      id: `mission-${i}`,
+      ...template,
+      current: 0,
+      completed: false,
+    }));
+  }
+
+  private getDateString(date: Date): string {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  }
+
+  async getDailyMissions(): Promise<DailyMission[]> {
+    const now = new Date();
+    const todayString = this.getDateString(now);
+    const lastResetString = this.getDateString(this.lastMissionReset);
+    
+    if (todayString !== lastResetString || this.dailyMissions.length === 0) {
+      this.generateDailyMissions();
+      this.lastMissionReset = now;
+      this.todayCreditsEarned = 0;
+      this.todayLessonsCompleted = 0;
+    }
+    
+    return this.dailyMissions;
+  }
+
+  private updateMissionProgress(type: DailyMission["type"], amount: number): void {
+    for (const mission of this.dailyMissions) {
+      if (mission.type === type && !mission.completed) {
+        mission.current = Math.min(mission.current + amount, mission.target);
+        if (mission.current >= mission.target) {
+          mission.completed = true;
+          const user = this.users.get(this.defaultUserId);
+          if (user) {
+            user.credits += mission.reward;
+          }
+        }
+      }
+    }
+  }
+
+  async onCreditsEarned(amount: number): Promise<void> {
+    this.todayCreditsEarned += amount;
+    this.updateMissionProgress("earn_credits", amount);
+  }
+
+  async onLessonCompleted(): Promise<void> {
+    this.todayLessonsCompleted += 1;
+    this.updateMissionProgress("complete_lessons", 1);
+  }
+
+  async getDailyPlan(): Promise<{
+    hasNewLesson: boolean;
+    reviewCount: number;
+    missions: DailyMission[];
+    allLessonsComplete: boolean;
+  }> {
+    const missions = await this.getDailyMissions();
+    
+    let reviewCount;
+    if (this.reviewSession.startedAt !== null) {
+      reviewCount = this.reviewSession.entries.length - this.reviewSession.cursor;
+    } else {
+      const reviewQuestions = await this.getReviewQuestions();
+      reviewCount = reviewQuestions.length;
+    }
+    
+    const hasNewLesson = this.currentCardIndex < this.learningCards.length;
+    const allLessonsComplete = this.currentCardIndex >= this.learningCards.length;
+    
+    return {
+      hasNewLesson,
+      reviewCount,
+      missions,
+      allLessonsComplete,
+    };
   }
 }
 

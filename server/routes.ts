@@ -25,9 +25,23 @@ export async function registerRoutes(
 
   app.get("/api/learn", async (req, res) => {
     const user = await (storage as any).getDefaultUser();
-    const currentCard = await (storage as any).getCurrentLearningCard();
+    const isInReviewMode = await (storage as any).getIsInReviewMode();
+    
+    let currentCard;
+    if (isInReviewMode) {
+      currentCard = await (storage as any).getCurrentReviewCard();
+      if (!currentCard) {
+        await (storage as any).exitReviewMode();
+      }
+    } 
+    
+    if (!isInReviewMode || !currentCard) {
+      currentCard = await (storage as any).getCurrentLearningCard();
+    }
+    
     const todayProgress = await (storage as any).getTodayProgress();
     const totalCards = await (storage as any).getTotalCards();
+    const dailyPlan = await (storage as any).getDailyPlan();
     
     res.json({
       user,
@@ -35,7 +49,24 @@ export async function registerRoutes(
       streak: user.streak,
       todayProgress,
       totalCards,
+      dailyPlan,
+      isInReviewMode: await (storage as any).getIsInReviewMode(),
     });
+  });
+
+  app.get("/api/daily-plan", async (req, res) => {
+    const dailyPlan = await (storage as any).getDailyPlan();
+    res.json(dailyPlan);
+  });
+
+  app.post("/api/start-review", async (req, res) => {
+    await (storage as any).startReviewMode();
+    res.json({ success: true });
+  });
+
+  app.post("/api/exit-review", async (req, res) => {
+    await (storage as any).exitReviewMode();
+    res.json({ success: true });
   });
 
   app.post("/api/next-card", async (req, res) => {
@@ -142,13 +173,16 @@ export async function registerRoutes(
   });
 
   app.post("/api/answer", async (req, res) => {
-    const { questionId, isCorrect, creditsEarned } = req.body;
+    const { questionId, isCorrect, creditsEarned, lessonIndex } = req.body;
     
     const user = await (storage as any).getDefaultUser();
     await storage.updateUserStats(user.id, isCorrect);
     
+    await (storage as any).recordAnswer(questionId, lessonIndex || 0, isCorrect);
+    
     if (creditsEarned > 0) {
       await storage.updateUserCredits(user.id, creditsEarned);
+      await (storage as any).onCreditsEarned(creditsEarned);
     }
 
     const accuracy = user.totalAnswered > 0 
