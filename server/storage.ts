@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 type LearningCard = {
   id: string;
   type: "concept" | "example" | "question";
+  topicId: string;
   topic: string;
   difficulty: string;
   lessonIndex: number;
@@ -22,6 +23,14 @@ type LearningCard = {
     realWorldApplication: string;
   };
   question?: Question;
+};
+
+type TopicDefinition = {
+  id: string;
+  title: string;
+  description: string;
+  audience: "all" | "developer" | "product-owner";
+  order: number;
 };
 
 type AnswerHistory = {
@@ -47,6 +56,23 @@ type DailyMission = {
   current: number;
   reward: number;
   completed: boolean;
+};
+
+type TopicInfo = {
+  id: string;
+  title: string;
+  description: string;
+  audience: "all" | "developer" | "product-owner";
+  lessonCount: number;
+  completedLessons: number;
+  isLocked: boolean;
+  unlocksAt: Date | null;
+};
+
+type TopicProgress = {
+  topicId: string;
+  completedLessonIndices: number[];
+  completedAt: Date | null;
 };
 
 export interface IStorage {
@@ -83,6 +109,7 @@ export class MemStorage implements IStorage {
   private learningCards: LearningCard[];
   private currentCardIndex: number;
   private completedCardIds: Set<string>;
+  private topics: TopicDefinition[];
   
   private answerHistory: AnswerHistory[];
   private dailyMissions: DailyMission[];
@@ -90,6 +117,8 @@ export class MemStorage implements IStorage {
   private reviewSession: ReviewSession;
   private todayCreditsEarned: number;
   private todayLessonsCompleted: number;
+  private topicProgress: Map<string, TopicProgress>;
+  private topicUnlockDates: Map<string, Date>;
 
   constructor() {
     this.users = new Map();
@@ -100,6 +129,7 @@ export class MemStorage implements IStorage {
     this.learningCards = [];
     this.currentCardIndex = 0;
     this.completedCardIds = new Set();
+    this.topics = [];
     
     this.answerHistory = [];
     this.dailyMissions = [];
@@ -107,6 +137,8 @@ export class MemStorage implements IStorage {
     this.reviewSession = { entries: [], cursor: 0, startedAt: null };
     this.todayCreditsEarned = 0;
     this.todayLessonsCompleted = 0;
+    this.topicProgress = new Map();
+    this.topicUnlockDates = new Map();
     
     this.defaultUserId = randomUUID();
     this.initializeData();
@@ -555,10 +587,20 @@ All this runs in a secure sandbox - the code can't access anything outside its c
       },
     ];
 
+    this.topics = [
+      { id: "ai-agents-fundamentals", title: "AI Agents Fundamentals", description: "Core concepts of AI agents", audience: "all", order: 1 },
+      { id: "ai-for-product-owners", title: "AI for Product Owners", description: "Strategic AI decisions", audience: "product-owner", order: 2 },
+      { id: "genai-for-developers", title: "GenAI for Developers", description: "Building with AI APIs", audience: "developer", order: 3 },
+    ];
+    
+    this.topicUnlockDates.set("ai-agents-fundamentals", new Date(0));
+
     const cards: Omit<LearningCard, "id">[] = [];
     lessons.forEach((lesson, lessonIndex) => {
+      const topicId = "ai-agents-fundamentals";
       cards.push({
         type: "concept",
+        topicId,
         topic: lesson.topic,
         difficulty: lesson.difficulty,
         lessonIndex,
@@ -567,6 +609,7 @@ All this runs in a secure sandbox - the code can't access anything outside its c
       });
       cards.push({
         type: "example",
+        topicId,
         topic: lesson.topic,
         difficulty: lesson.difficulty,
         lessonIndex,
@@ -575,6 +618,342 @@ All this runs in a secure sandbox - the code can't access anything outside its c
       });
       cards.push({
         type: "question",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 3,
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          ...lesson.question,
+        },
+      });
+    });
+
+    const productOwnerLessons = [
+      {
+        topic: "Evaluating AI Products",
+        difficulty: "beginner",
+        concept: {
+          title: "How to Evaluate AI for Your Product",
+          content: `Before adding AI to your product, ask three critical questions:
+
+1. IS THIS A GOOD FIT FOR AI?
+AI excels at: Pattern recognition, language understanding, prediction, personalization
+AI struggles with: Precise calculations, guaranteed correctness, explaining its reasoning
+
+2. WHAT'S THE COST OF BEING WRONG?
+Low stakes: Recommendations, search, suggestions
+High stakes: Medical diagnosis, financial decisions, legal advice
+Rule: The higher the stakes, the more human oversight you need.
+
+3. DO YOU HAVE THE DATA?
+AI needs data to learn. If you're starting fresh, consider: Do you have enough examples? Is your data representative? How will you handle edge cases?`,
+          keyTakeaway: "Good AI products match the technology to problems where being sometimes wrong is acceptable and data is available.",
+        },
+        example: {
+          title: "AI Fit Analysis: E-commerce Search",
+          scenario: "An e-commerce company wants to improve their search results using AI.",
+          explanation: `Let's evaluate:
+
+FIT CHECK:
+- Pattern recognition? Yes - finding products from vague queries
+- Language understanding? Yes - "blue running shoes for wet weather"
+- Precise answers needed? No - showing relevant options is fine
+
+COST OF WRONG:
+- Low stakes - showing imperfect results just means users refine their search
+- No safety concerns - worst case is a frustrated customer
+
+DATA AVAILABLE?
+- Years of search queries + clicks
+- Purchase history
+- Product descriptions and images
+
+VERDICT: Excellent AI fit! This is why Amazon, Shopify, and every major e-commerce platform uses AI search.`,
+          realWorldApplication: "Companies like Algolia and Elasticsearch now offer AI-powered search that understands intent, not just keywords.",
+        },
+        question: {
+          scenario: "A hospital wants to use AI to automatically diagnose patients from their symptoms and prescribe medication without doctor review.",
+          question: "Why is this a poor fit for current AI technology?",
+          options: [
+            "AI can't understand medical terminology",
+            "High stakes decisions require human oversight, and AI can make confident-sounding errors",
+            "Hospitals don't have enough data",
+            "AI is too expensive for healthcare"
+          ],
+          correctIndex: 1,
+          explanation: "Medical diagnosis is high-stakes - errors can harm patients. Current AI can hallucinate confidently, making it unsuitable for autonomous medical decisions. AI works well as a tool to assist doctors, not replace their judgment in critical decisions.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+      {
+        topic: "AI ROI & Buy vs Build",
+        difficulty: "beginner",
+        concept: {
+          title: "Build vs Buy: Making Smart AI Investments",
+          content: `Most companies should BUY AI capabilities, not build them. Here's why:
+
+BUILD only if:
+- AI is your core competitive advantage
+- You have unique data no one else has
+- You have an ML team with 12+ months runway
+- You're solving a problem APIs can't handle
+
+BUY (use APIs) when:
+- Speed to market matters
+- The capability is becoming commoditized
+- You lack specialized ML talent
+- You want predictable costs
+
+THE HIDDEN COSTS OF BUILDING:
+- Data labeling and cleaning (60% of ML project time)
+- Model training and iteration
+- Infrastructure and scaling
+- Ongoing maintenance and monitoring
+- Keeping up with rapidly evolving field`,
+          keyTakeaway: "For 90% of companies, buying AI via APIs is faster, cheaper, and lets you focus on your actual product.",
+        },
+        example: {
+          title: "Real Decision: Customer Support Chatbot",
+          scenario: "A SaaS company with 50 employees wants to add AI chat support.",
+          explanation: `BUY OPTION (Recommended):
+- Use OpenAI API + simple prompt engineering
+- Time to launch: 2-4 weeks
+- Cost: $500-2000/month based on usage
+- Maintenance: Minimal - update prompts occasionally
+
+BUILD OPTION:
+- Hire 2-3 ML engineers ($400K+/year)
+- 6-12 months to first version
+- Need to collect/label thousands of conversations
+- Build training pipeline, hosting, monitoring
+- Ongoing model updates as product changes
+
+REALITY CHECK:
+Even companies like Intercom and Zendesk - whose core business is customer support - use OpenAI's models. If they're buying, why would you build?`,
+          realWorldApplication: "Stripe, Notion, and thousands of startups use OpenAI/Anthropic APIs rather than building custom models - letting them ship AI features in weeks, not years.",
+        },
+        question: {
+          scenario: "A 20-person startup wants to add AI features to their note-taking app. They have $2M in funding and want to launch within 3 months.",
+          question: "Should they build custom AI models or use existing APIs?",
+          options: [
+            "Build custom models for competitive advantage",
+            "Use existing APIs - faster time to market and appropriate for their stage",
+            "Wait for AI to mature before adding features",
+            "Hire an ML team first, then decide"
+          ],
+          correctIndex: 1,
+          explanation: "With limited funding and a 3-month timeline, APIs are the clear choice. Building custom models would consume their runway and delay launch by 6-12 months. Many successful companies like Notion ship with APIs and only consider custom models after proving product-market fit.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+    ];
+
+    const developerLessons = [
+      {
+        topic: "Prompt Engineering Basics",
+        difficulty: "beginner",
+        concept: {
+          title: "Writing Effective Prompts",
+          content: `Prompts are how you program AI models. Better prompts = better results.
+
+THE CORE PATTERN:
+1. ROLE: Tell the AI who to be
+   "You are an expert code reviewer..."
+
+2. TASK: Be specific about what you want
+   "Review this code for security vulnerabilities"
+
+3. CONTEXT: Provide relevant information
+   "This is a Node.js API handling payment data"
+
+4. FORMAT: Specify the output structure
+   "List each issue with severity, line number, and fix"
+
+COMMON MISTAKES:
+- Being too vague ("make this better")
+- Not providing examples
+- Asking for too much at once
+- Not specifying constraints`,
+          keyTakeaway: "Good prompts have four parts: Role, Task, Context, and Format. The more specific you are, the better the output.",
+        },
+        example: {
+          title: "Prompt Improvement: Code Review",
+          scenario: "You want AI to review your code for issues.",
+          explanation: `BAD PROMPT:
+"Review this code"
+
+BETTER PROMPT:
+"You are a senior security engineer. Review this Node.js authentication code for:
+1. SQL injection vulnerabilities
+2. Password handling issues
+3. Session management flaws
+
+For each issue found, provide:
+- Line number
+- Severity (high/medium/low)
+- Specific fix recommendation
+
+Code:
+[paste code here]"
+
+WHY IT'S BETTER:
+- Clear role (security engineer)
+- Specific focus areas (3 types of issues)
+- Defined output format
+- Actionable deliverables`,
+          realWorldApplication: "GitHub Copilot, Cursor, and other AI coding tools all use sophisticated prompts behind the scenes to give you relevant suggestions.",
+        },
+        question: {
+          scenario: "You want an AI to help you write unit tests for a React component.",
+          question: "Which prompt will give you the best results?",
+          options: [
+            "Write tests for this component",
+            "You are a React testing expert. Write Jest tests for this UserProfile component that test: 1) rendering with valid props, 2) handling missing data, 3) click interactions. Use React Testing Library. Here's the component: [code]",
+            "Make some tests",
+            "I need help with testing"
+          ],
+          correctIndex: 1,
+          explanation: "The detailed prompt specifies the role (React testing expert), exact requirements (3 test scenarios), technology (Jest + RTL), and provides the code. This gives the AI everything it needs to produce useful, specific tests.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+      {
+        topic: "Working with AI APIs",
+        difficulty: "beginner",
+        concept: {
+          title: "Integrating AI APIs: Best Practices",
+          content: `Calling AI APIs seems simple, but production usage requires careful design.
+
+ESSENTIAL PATTERNS:
+
+1. HANDLE FAILURES GRACEFULLY
+AI APIs can timeout, rate limit, or return errors. Always have a fallback.
+
+2. MANAGE COSTS
+Set usage limits, cache responses, use cheaper models for simple tasks.
+
+3. STREAM FOR UX
+Long responses should stream token-by-token so users see progress.
+
+4. LOG EVERYTHING
+Store prompts, responses, and latency. You'll need this for debugging and improvement.
+
+5. VALIDATE OUTPUTS
+AI can return unexpected formats. Parse and validate before using.
+
+COST OPTIMIZATION:
+- GPT-4: ~$30/million tokens (powerful)
+- GPT-3.5: ~$0.50/million tokens (fast, cheap)
+- Use 3.5 for simple tasks, 4 for complex reasoning`,
+          keyTakeaway: "Production AI requires error handling, cost management, streaming, logging, and output validation - not just API calls.",
+        },
+        example: {
+          title: "Production-Ready AI Integration",
+          scenario: "Building a feature that summarizes long documents.",
+          explanation: `NAIVE APPROACH:
+const summary = await openai.chat({
+  model: "gpt-4",
+  messages: [{role: "user", content: doc}]
+});
+
+PRODUCTION APPROACH:
+1. Check document length - split if too long
+2. Use streaming for immediate feedback
+3. Add timeout and retry logic
+4. Cache summaries to avoid re-processing
+5. Log request/response for debugging
+6. Validate response has expected format
+7. Use gpt-3.5-turbo for short docs (cheaper)
+8. Set user-level rate limits
+
+The naive version works in demos. The production version works at scale without bankrupting you or frustrating users.`,
+          realWorldApplication: "Companies like Notion and Jasper process millions of AI requests daily using these patterns to keep costs manageable and reliability high.",
+        },
+        question: {
+          scenario: "Your AI feature works in development but in production: API calls sometimes timeout, costs are higher than expected, and users complain about slow responses.",
+          question: "What's the most impactful fix to implement first?",
+          options: [
+            "Upgrade to a more expensive API tier",
+            "Add streaming, caching, and a fallback for failures",
+            "Remove the AI feature entirely",
+            "Ask users to be patient"
+          ],
+          correctIndex: 1,
+          explanation: "Streaming improves perceived speed, caching reduces costs and latency for repeat queries, and fallbacks ensure the app works even when the API fails. These are the production fundamentals that separate demos from real products.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+    ];
+
+    let lessonOffset = lessons.length;
+    productOwnerLessons.forEach((lesson, idx) => {
+      const topicId = "ai-for-product-owners";
+      const lessonIndex = lessonOffset + idx;
+      cards.push({
+        type: "concept",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 1,
+        concept: lesson.concept,
+      });
+      cards.push({
+        type: "example",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 2,
+        example: lesson.example,
+      });
+      cards.push({
+        type: "question",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 3,
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          ...lesson.question,
+        },
+      });
+    });
+
+    lessonOffset += productOwnerLessons.length;
+    developerLessons.forEach((lesson, idx) => {
+      const topicId = "genai-for-developers";
+      const lessonIndex = lessonOffset + idx;
+      cards.push({
+        type: "concept",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 1,
+        concept: lesson.concept,
+      });
+      cards.push({
+        type: "example",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 2,
+        example: lesson.example,
+      });
+      cards.push({
+        type: "question",
+        topicId,
         topic: lesson.topic,
         difficulty: lesson.difficulty,
         lessonIndex,
@@ -648,6 +1027,7 @@ All this runs in a secure sandbox - the code can't access anything outside its c
       
       if (currentCard.type === "question") {
         this.updateMissionProgress("complete_lessons", 1);
+        await this.completeTopicLesson(currentCard.topicId);
       }
     }
     
@@ -671,6 +1051,52 @@ All this runs in a secure sandbox - the code can't access anything outside its c
 
   async getTotalCards(): Promise<number> {
     return this.learningCards.length;
+  }
+
+  async getTopics(): Promise<TopicInfo[]> {
+    const now = new Date();
+    return this.topics.map(topic => {
+      const topicCards = this.learningCards.filter(c => c.topicId === topic.id);
+      const questionCards = topicCards.filter(c => c.type === "question");
+      const completedQuestions = questionCards.filter(c => this.completedCardIds.has(c.id));
+      
+      const unlockDate = this.topicUnlockDates.get(topic.id);
+      const isLocked = !unlockDate || unlockDate > now;
+      
+      return {
+        id: topic.id,
+        title: topic.title,
+        description: topic.description,
+        audience: topic.audience,
+        lessonCount: questionCards.length,
+        completedLessons: completedQuestions.length,
+        isLocked,
+        unlocksAt: isLocked ? unlockDate || null : null,
+      };
+    });
+  }
+
+  async completeTopicLesson(topicId: string): Promise<void> {
+    const topicCards = this.learningCards.filter(c => c.topicId === topicId && c.type === "question");
+    const completedCount = topicCards.filter(c => this.completedCardIds.has(c.id)).length;
+    
+    if (completedCount >= topicCards.length) {
+      const topic = this.topics.find(t => t.id === topicId);
+      if (topic) {
+        const nextTopic = this.topics.find(t => t.order === topic.order + 1);
+        if (nextTopic && !this.topicUnlockDates.has(nextTopic.id)) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(0, 0, 0, 0);
+          this.topicUnlockDates.set(nextTopic.id, tomorrow);
+        }
+      }
+    }
+  }
+
+  async getCurrentTopicId(): Promise<string | null> {
+    const currentCard = await this.getCurrentLearningCard();
+    return currentCard?.topicId || null;
   }
 
   async getUser(id: string): Promise<User | undefined> {

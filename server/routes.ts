@@ -59,6 +59,11 @@ export async function registerRoutes(
     res.json(dailyPlan);
   });
 
+  app.get("/api/topics", async (req, res) => {
+    const topics = await (storage as any).getTopics();
+    res.json({ topics });
+  });
+
   app.post("/api/start-review", async (req, res) => {
     await (storage as any).startReviewMode();
     res.json({ success: true });
