@@ -2,7 +2,27 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw, BookOpen, Sparkles, User, Trophy, RefreshCw, Star, Lock, Clock, Users, Code } from "lucide-react";
+import {
+  Zap,
+  Flame,
+  Target,
+  ArrowRight,
+  Check,
+  X,
+  Lightbulb,
+  ChevronRight,
+  RotateCcw,
+  BookOpen,
+  Sparkles,
+  User,
+  Trophy,
+  RefreshCw,
+  Star,
+  Lock,
+  Clock,
+  Users,
+  Code,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,7 +130,12 @@ export default function Dashboard() {
   });
 
   const submitAnswerMutation = useMutation({
-    mutationFn: async (payload: { questionId: string; isCorrect: boolean; creditsEarned: number; lessonIndex: number }) => {
+    mutationFn: async (payload: {
+      questionId: string;
+      isCorrect: boolean;
+      creditsEarned: number;
+      lessonIndex: number;
+    }) => {
       return apiRequest("POST", "/api/answer", payload);
     },
     onSuccess: () => {
@@ -159,29 +184,32 @@ export default function Dashboard() {
     }
   }, [nameInput, setUserNameMutation]);
 
-  const handleSelectAnswer = useCallback((index: number) => {
-    if (hasAnswered || !data?.currentCard?.question) return;
-    
-    setSelectedAnswer(index);
-    setHasAnswered(true);
-    
-    const question = data.currentCard.question;
-    const isCorrect = index === question.correctIndex;
-    const earned = isCorrect ? question.creditsReward : 0;
-    
-    if (earned > 0) {
-      setRewardAmount(earned);
-      setShowReward(true);
-      setTimeout(() => setShowReward(false), 2000);
-    }
-    
-    submitAnswerMutation.mutate({
-      questionId: question.id,
-      isCorrect,
-      creditsEarned: earned,
-      lessonIndex: data.currentCard.lessonIndex,
-    });
-  }, [hasAnswered, data, submitAnswerMutation]);
+  const handleSelectAnswer = useCallback(
+    (index: number) => {
+      if (hasAnswered || !data?.currentCard?.question) return;
+
+      setSelectedAnswer(index);
+      setHasAnswered(true);
+
+      const question = data.currentCard.question;
+      const isCorrect = index === question.correctIndex;
+      const earned = isCorrect ? question.creditsReward : 0;
+
+      if (earned > 0) {
+        setRewardAmount(earned);
+        setShowReward(true);
+        setTimeout(() => setShowReward(false), 2000);
+      }
+
+      submitAnswerMutation.mutate({
+        questionId: question.id,
+        isCorrect,
+        creditsEarned: earned,
+        lessonIndex: data.currentCard.lessonIndex,
+      });
+    },
+    [hasAnswered, data, submitAnswerMutation],
+  );
 
   const handleStartReview = useCallback(() => {
     startReviewMutation.mutate();
@@ -218,7 +246,9 @@ export default function Dashboard() {
                   <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
                     <User className="h-8 w-8 text-primary" />
                   </div>
-                  <h1 className="text-2xl font-bold mb-2">Welcome to Learn-AI</h1>
+                  <h1 className="text-2xl font-bold mb-2">
+                    Welcome to Learn-Tech
+                  </h1>
                   <p className="text-muted-foreground mb-6">
                     Enter your name to start learning and track your progress
                   </p>
@@ -231,8 +261,8 @@ export default function Dashboard() {
                       className="text-center text-lg"
                       data-testid="input-username"
                     />
-                    <Button 
-                      className="w-full" 
+                    <Button
+                      className="w-full"
                       size="lg"
                       onClick={handleSetName}
                       disabled={!nameInput.trim()}
@@ -260,35 +290,44 @@ export default function Dashboard() {
   }
 
   const { user, currentCard, streak, todayProgress, totalCards } = data;
-  const accuracy = user.totalAnswered > 0 
-    ? Math.round((user.totalCorrect / user.totalAnswered) * 100) 
-    : 0;
+  const accuracy =
+    user.totalAnswered > 0
+      ? Math.round((user.totalCorrect / user.totalAnswered) * 100)
+      : 0;
 
   const getLevelProgress = () => {
-    if (user.currentLevel === 'advanced') {
+    if (user.currentLevel === "advanced") {
       return { progress: 100, nextLevel: null, needed: 0 };
     }
-    if (user.currentLevel === 'intermediate') {
+    if (user.currentLevel === "intermediate") {
       const target = 90;
       const minQuestions = 6;
       const questionsNeeded = Math.max(0, minQuestions - user.totalAnswered);
       const accuracyNeeded = Math.max(0, target - accuracy);
-      return { 
-        progress: Math.min(accuracy / target * 100, 100), 
-        nextLevel: 'Advanced',
-        needed: questionsNeeded > 0 ? `${questionsNeeded} more questions` : 
-                accuracyNeeded > 0 ? `${accuracyNeeded}% more accuracy` : 'Almost there!'
+      return {
+        progress: Math.min((accuracy / target) * 100, 100),
+        nextLevel: "Advanced",
+        needed:
+          questionsNeeded > 0
+            ? `${questionsNeeded} more questions`
+            : accuracyNeeded > 0
+              ? `${accuracyNeeded}% more accuracy`
+              : "Almost there!",
       };
     }
     const target = 80;
     const minQuestions = 3;
     const questionsNeeded = Math.max(0, minQuestions - user.totalAnswered);
     const accuracyNeeded = Math.max(0, target - accuracy);
-    return { 
-      progress: Math.min(accuracy / target * 100, 100), 
-      nextLevel: 'Intermediate',
-      needed: questionsNeeded > 0 ? `${questionsNeeded} more questions` : 
-              accuracyNeeded > 0 ? `${accuracyNeeded}% more accuracy` : 'Almost there!'
+    return {
+      progress: Math.min((accuracy / target) * 100, 100),
+      nextLevel: "Intermediate",
+      needed:
+        questionsNeeded > 0
+          ? `${questionsNeeded} more questions`
+          : accuracyNeeded > 0
+            ? `${accuracyNeeded}% more accuracy`
+            : "Almost there!",
     };
   };
 
@@ -298,59 +337,100 @@ export default function Dashboard() {
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'advanced': return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
-      case 'intermediate': return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30';
-      default: return 'bg-primary/10 text-primary border-primary/30';
+      case "advanced":
+        return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
+      case "intermediate":
+        return "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30";
+      default:
+        return "bg-primary/10 text-primary border-primary/30";
     }
   };
 
   return (
     <div className="min-h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
       <CreditReward amount={rewardAmount} isVisible={showReward} />
-      
+
       <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div className="h-4 w-px bg-border" />
-              <span className="font-medium text-sm hidden sm:inline" data-testid="text-username">{userName}</span>
+              <span
+                className="font-medium text-sm hidden sm:inline"
+                data-testid="text-username"
+              >
+                {userName}
+              </span>
               <div className="flex items-center gap-1.5">
                 <Zap className="h-4 w-4 text-amber-500" />
-                <span className="font-semibold text-sm" data-testid="text-credits">{user.credits}</span>
+                <span
+                  className="font-semibold text-sm"
+                  data-testid="text-credits"
+                >
+                  {user.credits}
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Flame className="h-4 w-4 text-orange-500" />
-                <span className="font-semibold text-sm" data-testid="text-streak">{streak} day{streak !== 1 ? 's' : ''}</span>
+                <span
+                  className="font-semibold text-sm"
+                  data-testid="text-streak"
+                >
+                  {streak} day{streak !== 1 ? "s" : ""}
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Target className="h-4 w-4 text-emerald-500" />
-                <span className="font-semibold text-sm" data-testid="text-accuracy">{accuracy}%</span>
+                <span
+                  className="font-semibold text-sm"
+                  data-testid="text-accuracy"
+                >
+                  {accuracy}%
+                </span>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${getDifficultyColor(user.currentLevel)}`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  user.currentLevel === 'advanced' ? 'bg-emerald-500' : 
-                  user.currentLevel === 'intermediate' ? 'bg-amber-500' : 'bg-primary'
-                }`} />
-                <span className="text-sm font-semibold capitalize">{user.currentLevel}</span>
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${getDifficultyColor(user.currentLevel)}`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    user.currentLevel === "advanced"
+                      ? "bg-emerald-500"
+                      : user.currentLevel === "intermediate"
+                        ? "bg-amber-500"
+                        : "bg-primary"
+                  }`}
+                />
+                <span className="text-sm font-semibold capitalize">
+                  {user.currentLevel}
+                </span>
               </div>
               <ThemeToggle />
             </div>
           </div>
-          
+
           {levelProgress.nextLevel && (
             <div className="mt-3">
               <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-muted-foreground">Next: <span className="font-medium text-foreground">{levelProgress.nextLevel}</span></span>
-                <span className="text-muted-foreground">{levelProgress.needed}</span>
+                <span className="text-muted-foreground">
+                  Next:{" "}
+                  <span className="font-medium text-foreground">
+                    {levelProgress.nextLevel}
+                  </span>
+                </span>
+                <span className="text-muted-foreground">
+                  {levelProgress.needed}
+                </span>
               </div>
               <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <motion.div 
+                <motion.div
                   className={`h-full rounded-full ${
-                    user.currentLevel === 'intermediate' ? 'bg-emerald-500' : 'bg-amber-500'
+                    user.currentLevel === "intermediate"
+                      ? "bg-emerald-500"
+                      : "bg-amber-500"
                   }`}
                   initial={{ width: 0 }}
                   animate={{ width: `${levelProgress.progress}%` }}
@@ -382,7 +462,9 @@ export default function Dashboard() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 mb-4">
                       <Trophy className="h-8 w-8 text-emerald-500" />
                     </div>
-                    <h2 className="text-xl font-bold mb-2">Great job, {userName}!</h2>
+                    <h2 className="text-xl font-bold mb-2">
+                      Great job, {userName}!
+                    </h2>
                     <p className="text-muted-foreground text-sm">
                       You've completed this topic. Check out what's coming next:
                     </p>
@@ -398,29 +480,39 @@ export default function Dashboard() {
                       </div>
                       <div className="space-y-3">
                         {topicsData.topics.map((topic) => {
-                          const isComplete = topic.completedLessons >= topic.lessonCount;
-                          const audienceIcon = topic.audience === "developer" ? Code : 
-                                               topic.audience === "product-owner" ? Users : BookOpen;
+                          const isComplete =
+                            topic.completedLessons >= topic.lessonCount;
+                          const audienceIcon =
+                            topic.audience === "developer"
+                              ? Code
+                              : topic.audience === "product-owner"
+                                ? Users
+                                : BookOpen;
                           const AudienceIcon = audienceIcon;
-                          
+
                           return (
-                            <div 
+                            <div
                               key={topic.id}
                               className={`p-4 rounded-md border ${
-                                topic.isLocked 
-                                  ? 'bg-muted/30 border-muted opacity-60' 
-                                  : isComplete 
-                                    ? 'bg-emerald-500/5 border-emerald-500/20'
-                                    : 'bg-background border-border'
+                                topic.isLocked
+                                  ? "bg-muted/30 border-muted opacity-60"
+                                  : isComplete
+                                    ? "bg-emerald-500/5 border-emerald-500/20"
+                                    : "bg-background border-border"
                               }`}
                               data-testid={`topic-card-${topic.id}`}
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <div className={`flex-shrink-0 w-10 h-10 rounded-md flex items-center justify-center ${
-                                    topic.isLocked ? 'bg-muted' :
-                                    isComplete ? 'bg-emerald-500/10' : 'bg-primary/10'
-                                  }`}>
+                                  <div
+                                    className={`flex-shrink-0 w-10 h-10 rounded-md flex items-center justify-center ${
+                                      topic.isLocked
+                                        ? "bg-muted"
+                                        : isComplete
+                                          ? "bg-emerald-500/10"
+                                          : "bg-primary/10"
+                                    }`}
+                                  >
                                     {topic.isLocked ? (
                                       <Lock className="h-5 w-5 text-muted-foreground" />
                                     ) : isComplete ? (
@@ -431,14 +523,23 @@ export default function Dashboard() {
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
-                                      <span className="font-medium text-sm truncate">{topic.title}</span>
+                                      <span className="font-medium text-sm truncate">
+                                        {topic.title}
+                                      </span>
                                       {topic.audience !== "all" && (
-                                        <Badge variant="outline" className="text-xs flex-shrink-0">
-                                          {topic.audience === "developer" ? "Dev" : "PM"}
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs flex-shrink-0"
+                                        >
+                                          {topic.audience === "developer"
+                                            ? "Dev"
+                                            : "PM"}
                                         </Badge>
                                       )}
                                     </div>
-                                    <p className="text-xs text-muted-foreground truncate">{topic.description}</p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {topic.description}
+                                    </p>
                                   </div>
                                 </div>
                                 <div className="text-right flex-shrink-0">
@@ -449,16 +550,21 @@ export default function Dashboard() {
                                     </div>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">
-                                      {topic.completedLessons}/{topic.lessonCount} lessons
+                                      {topic.completedLessons}/
+                                      {topic.lessonCount} lessons
                                     </span>
                                   )}
                                 </div>
                               </div>
                               {!topic.isLocked && !isComplete && (
                                 <div className="mt-3">
-                                  <Progress 
-                                    value={(topic.completedLessons / topic.lessonCount) * 100} 
-                                    className="h-1.5" 
+                                  <Progress
+                                    value={
+                                      (topic.completedLessons /
+                                        topic.lessonCount) *
+                                      100
+                                    }
+                                    className="h-1.5"
                                   />
                                 </div>
                               )}
@@ -479,9 +585,9 @@ export default function Dashboard() {
                       </div>
                       <div className="space-y-4">
                         {data.dailyPlan.missions.map((mission) => (
-                          <div 
-                            key={mission.id} 
-                            className={`p-4 rounded-md border ${mission.completed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-muted/50'}`}
+                          <div
+                            key={mission.id}
+                            className={`p-4 rounded-md border ${mission.completed ? "bg-emerald-500/5 border-emerald-500/20" : "bg-muted/50"}`}
                           >
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <div className="flex items-center gap-2">
@@ -490,14 +596,21 @@ export default function Dashboard() {
                                 ) : (
                                   <Target className="h-4 w-4 text-muted-foreground" />
                                 )}
-                                <span className="font-medium text-sm">{mission.title}</span>
+                                <span className="font-medium text-sm">
+                                  {mission.title}
+                                </span>
                               </div>
                               <Badge className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30">
                                 +{mission.reward} credits
                               </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground mb-2">{mission.description}</p>
-                            <Progress value={(mission.current / mission.target) * 100} className="h-1.5" />
+                            <p className="text-xs text-muted-foreground mb-2">
+                              {mission.description}
+                            </p>
+                            <Progress
+                              value={(mission.current / mission.target) * 100}
+                              className="h-1.5"
+                            />
                             <p className="text-xs text-muted-foreground mt-1">
                               {mission.current}/{mission.target}
                             </p>
@@ -516,10 +629,15 @@ export default function Dashboard() {
                         <h3 className="font-semibold">Review Mode</h3>
                       </div>
                       <p className="text-sm text-muted-foreground mb-4">
-                        You have {data.dailyPlan.reviewCount} question{data.dailyPlan.reviewCount !== 1 ? 's' : ''} ready for review. 
-                        Practice makes perfect!
+                        You have {data.dailyPlan.reviewCount} question
+                        {data.dailyPlan.reviewCount !== 1 ? "s" : ""} ready for
+                        review. Practice makes perfect!
                       </p>
-                      <Button onClick={handleStartReview} className="w-full" data-testid="button-start-review">
+                      <Button
+                        onClick={handleStartReview}
+                        className="w-full"
+                        data-testid="button-start-review"
+                      >
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Start Review
                       </Button>
@@ -528,7 +646,11 @@ export default function Dashboard() {
                 )}
 
                 <div className="text-center pt-2">
-                  <Button variant="outline" onClick={() => refetch()} data-testid="button-refresh">
+                  <Button
+                    variant="outline"
+                    onClick={() => refetch()}
+                    data-testid="button-refresh"
+                  >
                     <RotateCcw className="h-4 w-4 mr-2" />
                     Refresh
                   </Button>
@@ -550,7 +672,9 @@ export default function Dashboard() {
                           <Badge variant="outline" className="text-xs">
                             Lesson {lessonNumber}
                           </Badge>
-                          <Badge className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}>
+                          <Badge
+                            className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}
+                          >
                             {currentCard.difficulty}
                           </Badge>
                         </div>
@@ -559,57 +683,71 @@ export default function Dashboard() {
                           <span>Step {lessonStep} of 3</span>
                         </div>
                       </div>
-                      
+
                       <div className="flex gap-1 mb-6">
                         {[1, 2, 3].map((step) => (
-                          <div 
-                            key={step} 
+                          <div
+                            key={step}
                             className={`h-1 flex-1 rounded-full ${
-                              step <= lessonStep ? 'bg-primary' : 'bg-muted'
+                              step <= lessonStep ? "bg-primary" : "bg-muted"
                             }`}
                           />
                         ))}
                       </div>
-                      
+
                       <div className="flex items-center gap-2 mb-4">
                         <div className="p-2 rounded-md bg-primary/10">
                           <BookOpen className="h-5 w-5 text-primary" />
                         </div>
-                        <span className="text-sm font-medium text-muted-foreground">{currentCard.topic}</span>
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {currentCard.topic}
+                        </span>
                       </div>
-                      
-                      <h2 className="text-2xl font-bold mb-4" data-testid="text-concept-title">
+
+                      <h2
+                        className="text-2xl font-bold mb-4"
+                        data-testid="text-concept-title"
+                      >
                         {currentCard.concept.title}
                       </h2>
-                      
+
                       <div className="prose prose-sm dark:prose-invert max-w-none mb-6">
-                        {currentCard.concept.content.split('\n\n').map((paragraph, i) => (
-                          <p key={i} className="text-muted-foreground leading-relaxed">
-                            {paragraph}
-                          </p>
-                        ))}
+                        {currentCard.concept.content
+                          .split("\n\n")
+                          .map((paragraph, i) => (
+                            <p
+                              key={i}
+                              className="text-muted-foreground leading-relaxed"
+                            >
+                              {paragraph}
+                            </p>
+                          ))}
                       </div>
-                      
+
                       <div className="bg-primary/5 border border-primary/20 rounded-md p-4 mb-6">
                         <div className="flex items-start gap-3">
                           <Lightbulb className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                           <div>
-                            <p className="font-medium text-sm mb-1">Key Takeaway</p>
+                            <p className="font-medium text-sm mb-1">
+                              Key Takeaway
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               {currentCard.concept.keyTakeaway}
                             </p>
                           </div>
                         </div>
                       </div>
-                      
-                      <Button 
-                        className="w-full" 
+
+                      <Button
+                        className="w-full"
                         size="lg"
                         onClick={handleStartQuestions}
                         disabled={nextCardMutation.isPending}
                         data-testid="button-next-step"
                       >
-                        {nextCardMutation.isPending ? "Loading..." : "Continue to Example"}
+                        {nextCardMutation.isPending
+                          ? "Loading..."
+                          : "Continue to Example"}
                         <ChevronRight className="h-4 w-4 ml-2" />
                       </Button>
                     </CardContent>
@@ -632,7 +770,9 @@ export default function Dashboard() {
                           <Badge variant="outline" className="text-xs">
                             Lesson {lessonNumber}
                           </Badge>
-                          <Badge className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}>
+                          <Badge
+                            className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}
+                          >
                             {currentCard.difficulty}
                           </Badge>
                         </div>
@@ -641,63 +781,77 @@ export default function Dashboard() {
                           <span>Step {lessonStep} of 3</span>
                         </div>
                       </div>
-                      
+
                       <div className="flex gap-1 mb-6">
                         {[1, 2, 3].map((step) => (
-                          <div 
-                            key={step} 
+                          <div
+                            key={step}
                             className={`h-1 flex-1 rounded-full ${
-                              step <= lessonStep ? 'bg-amber-500' : 'bg-muted'
+                              step <= lessonStep ? "bg-amber-500" : "bg-muted"
                             }`}
                           />
                         ))}
                       </div>
-                      
+
                       <div className="flex items-center gap-2 mb-4">
                         <div className="p-2 rounded-md bg-amber-500/10">
                           <Sparkles className="h-5 w-5 text-amber-500" />
                         </div>
-                        <span className="text-sm font-medium text-muted-foreground">Real-World Example</span>
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Real-World Example
+                        </span>
                       </div>
-                      
-                      <h2 className="text-2xl font-bold mb-4" data-testid="text-example-title">
+
+                      <h2
+                        className="text-2xl font-bold mb-4"
+                        data-testid="text-example-title"
+                      >
                         {currentCard.example.title}
                       </h2>
-                      
+
                       <div className="bg-muted/50 rounded-md p-4 mb-6">
                         <p className="text-sm italic text-muted-foreground">
                           {currentCard.example.scenario}
                         </p>
                       </div>
-                      
+
                       <div className="prose prose-sm dark:prose-invert max-w-none mb-6">
-                        {currentCard.example.explanation.split('\n\n').map((paragraph, i) => (
-                          <p key={i} className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                            {paragraph}
-                          </p>
-                        ))}
+                        {currentCard.example.explanation
+                          .split("\n\n")
+                          .map((paragraph, i) => (
+                            <p
+                              key={i}
+                              className="text-muted-foreground leading-relaxed whitespace-pre-line"
+                            >
+                              {paragraph}
+                            </p>
+                          ))}
                       </div>
-                      
+
                       <div className="bg-amber-500/5 border border-amber-500/20 rounded-md p-4 mb-6">
                         <div className="flex items-start gap-3">
                           <Sparkles className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
                           <div>
-                            <p className="font-medium text-sm mb-1">Real-World Application</p>
+                            <p className="font-medium text-sm mb-1">
+                              Real-World Application
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               {currentCard.example.realWorldApplication}
                             </p>
                           </div>
                         </div>
                       </div>
-                      
-                      <Button 
-                        className="w-full" 
+
+                      <Button
+                        className="w-full"
                         size="lg"
                         onClick={handleStartQuestions}
                         disabled={nextCardMutation.isPending}
                         data-testid="button-start-quiz"
                       >
-                        {nextCardMutation.isPending ? "Loading..." : "Ready for Quiz"}
+                        {nextCardMutation.isPending
+                          ? "Loading..."
+                          : "Ready for Quiz"}
                         <ChevronRight className="h-4 w-4 ml-2" />
                       </Button>
                     </CardContent>
@@ -719,7 +873,9 @@ export default function Dashboard() {
                         <Badge variant="outline" className="text-xs">
                           Lesson {lessonNumber}
                         </Badge>
-                        <Badge className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}>
+                        <Badge
+                          className={`text-xs capitalize border ${getDifficultyColor(currentCard.difficulty)}`}
+                        >
                           {currentCard.difficulty}
                         </Badge>
                       </div>
@@ -733,18 +889,18 @@ export default function Dashboard() {
                         </Badge>
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-1 mb-6">
                       {[1, 2, 3].map((step) => (
-                        <div 
-                          key={step} 
+                        <div
+                          key={step}
                           className={`h-1 flex-1 rounded-full ${
-                            step <= lessonStep ? 'bg-emerald-500' : 'bg-muted'
+                            step <= lessonStep ? "bg-emerald-500" : "bg-muted"
                           }`}
                         />
                       ))}
                     </div>
-                    
+
                     {currentCard.question.scenario && (
                       <div className="bg-muted/50 rounded-md p-4 mb-4">
                         <p className="text-sm italic text-muted-foreground">
@@ -752,23 +908,30 @@ export default function Dashboard() {
                         </p>
                       </div>
                     )}
-                    
-                    <h3 className="text-xl font-semibold mb-6" data-testid="text-question">
+
+                    <h3
+                      className="text-xl font-semibold mb-6"
+                      data-testid="text-question"
+                    >
                       {currentCard.question.question}
                     </h3>
-                    
+
                     <div className="space-y-3 mb-6">
                       {currentCard.question.options.map((option, index) => {
                         const isSelected = selectedAnswer === index;
-                        const isCorrect = index === currentCard.question!.correctIndex;
+                        const isCorrect =
+                          index === currentCard.question!.correctIndex;
                         const showResult = hasAnswered;
-                        
-                        let className = "w-full text-left p-4 rounded-md border transition-all ";
+
+                        let className =
+                          "w-full text-left p-4 rounded-md border transition-all ";
                         if (showResult) {
                           if (isCorrect) {
-                            className += "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-300";
+                            className +=
+                              "bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-300";
                           } else if (isSelected && !isCorrect) {
-                            className += "bg-destructive/10 border-destructive text-destructive";
+                            className +=
+                              "bg-destructive/10 border-destructive text-destructive";
                           } else {
                             className += "opacity-50";
                           }
@@ -777,7 +940,7 @@ export default function Dashboard() {
                         } else {
                           className += "hover-elevate active-elevate-2";
                         }
-                        
+
                         return (
                           <button
                             key={index}
@@ -802,7 +965,7 @@ export default function Dashboard() {
                         );
                       })}
                     </div>
-                    
+
                     <AnimatePresence>
                       {hasAnswered && (
                         <motion.div
@@ -810,23 +973,27 @@ export default function Dashboard() {
                           animate={{ opacity: 1, height: "auto" }}
                           exit={{ opacity: 0, height: 0 }}
                         >
-                          <div className={`p-4 rounded-md mb-6 ${
-                            selectedAnswer === currentCard.question.correctIndex
-                              ? "bg-emerald-500/10 border border-emerald-500/30"
-                              : "bg-destructive/10 border border-destructive/30"
-                          }`}>
+                          <div
+                            className={`p-4 rounded-md mb-6 ${
+                              selectedAnswer ===
+                              currentCard.question.correctIndex
+                                ? "bg-emerald-500/10 border border-emerald-500/30"
+                                : "bg-destructive/10 border border-destructive/30"
+                            }`}
+                          >
                             <p className="font-medium text-sm mb-2">
-                              {selectedAnswer === currentCard.question.correctIndex 
-                                ? "Excellent!" 
+                              {selectedAnswer ===
+                              currentCard.question.correctIndex
+                                ? "Excellent!"
                                 : "Not quite right"}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               {currentCard.question.explanation}
                             </p>
                           </div>
-                          
-                          <Button 
-                            className="w-full" 
+
+                          <Button
+                            className="w-full"
                             size="lg"
                             onClick={handleNext}
                             disabled={nextCardMutation.isPending}
@@ -843,7 +1010,7 @@ export default function Dashboard() {
               </motion.div>
             ) : null}
           </AnimatePresence>
-          
+
           {/* Browse Topics Section - Always Visible */}
           {topicsData && topicsData.topics.length > 0 && currentCard && (
             <motion.div
@@ -860,35 +1027,42 @@ export default function Dashboard() {
                   </div>
                   <div className="space-y-3">
                     {topicsData.topics.map((topic) => {
-                      const isComplete = topic.completedLessons >= topic.lessonCount;
-                      const audienceIcon = topic.audience === "developer" ? Code : 
-                                           topic.audience === "product-owner" ? Users : BookOpen;
+                      const isComplete =
+                        topic.completedLessons >= topic.lessonCount;
+                      const audienceIcon =
+                        topic.audience === "developer"
+                          ? Code
+                          : topic.audience === "product-owner"
+                            ? Users
+                            : BookOpen;
                       const AudienceIcon = audienceIcon;
                       const isCurrent = currentCard?.topicId === topic.id;
-                      
+
                       return (
-                        <div 
-                          key={topic.id} 
+                        <div
+                          key={topic.id}
                           className={`p-4 rounded-md border ${
-                            topic.isLocked 
-                              ? 'opacity-60 bg-muted/30' 
-                              : isCurrent 
-                                ? 'border-primary/50 bg-primary/5'
-                                : isComplete 
-                                  ? 'bg-emerald-500/5 border-emerald-500/30' 
-                                  : 'hover-elevate'
+                            topic.isLocked
+                              ? "opacity-60 bg-muted/30"
+                              : isCurrent
+                                ? "border-primary/50 bg-primary/5"
+                                : isComplete
+                                  ? "bg-emerald-500/5 border-emerald-500/30"
+                                  : "hover-elevate"
                           }`}
                           data-testid={`topic-card-${topic.id}`}
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <div className={`p-2 rounded-md shrink-0 ${
-                                topic.isLocked 
-                                  ? 'bg-muted' 
-                                  : isComplete 
-                                    ? 'bg-emerald-500/10' 
-                                    : 'bg-primary/10'
-                              }`}>
+                              <div
+                                className={`p-2 rounded-md shrink-0 ${
+                                  topic.isLocked
+                                    ? "bg-muted"
+                                    : isComplete
+                                      ? "bg-emerald-500/10"
+                                      : "bg-primary/10"
+                                }`}
+                              >
                                 {topic.isLocked ? (
                                   <Lock className="h-4 w-4 text-muted-foreground" />
                                 ) : isComplete ? (
@@ -899,11 +1073,19 @@ export default function Dashboard() {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium text-sm">{topic.title}</span>
-                                  <Badge variant="outline" className="text-xs capitalize">
+                                  <span className="font-medium text-sm">
+                                    {topic.title}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs capitalize"
+                                  >
                                     <AudienceIcon className="h-3 w-3 mr-1" />
-                                    {topic.audience === "product-owner" ? "Product" : 
-                                     topic.audience === "developer" ? "Dev" : "All"}
+                                    {topic.audience === "product-owner"
+                                      ? "Product"
+                                      : topic.audience === "developer"
+                                        ? "Dev"
+                                        : "All"}
                                   </Badge>
                                   {isCurrent && (
                                     <Badge className="text-xs bg-primary/10 text-primary border-primary/30">
@@ -911,7 +1093,9 @@ export default function Dashboard() {
                                     </Badge>
                                   )}
                                 </div>
-                                <p className="text-xs text-muted-foreground truncate">{topic.description}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {topic.description}
+                                </p>
                               </div>
                             </div>
                             <div className="text-right flex-shrink-0">
@@ -922,15 +1106,19 @@ export default function Dashboard() {
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">
-                                  {topic.completedLessons}/{topic.lessonCount} lessons
+                                  {topic.completedLessons}/{topic.lessonCount}{" "}
+                                  lessons
                                 </span>
                               )}
                             </div>
                           </div>
                           {!topic.isLocked && !isComplete && (
                             <div className="mt-3">
-                              <Progress 
-                                value={(topic.completedLessons / topic.lessonCount) * 100} 
+                              <Progress
+                                value={
+                                  (topic.completedLessons / topic.lessonCount) *
+                                  100
+                                }
                                 className="h-1.5"
                               />
                             </div>

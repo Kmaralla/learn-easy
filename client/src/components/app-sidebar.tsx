@@ -31,11 +31,16 @@ export function AppSidebar({ credits = 0 }: AppSidebarProps) {
     <Sidebar>
       <SidebarHeader className="p-4">
         <Link href="/">
-          <div className="flex items-center gap-2 cursor-pointer" data-testid="link-logo">
+          <div
+            className="flex items-center gap-2 cursor-pointer"
+            data-testid="link-logo"
+          >
             <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">AI</span>
+              <span className="text-primary-foreground font-bold text-sm">
+                Learn
+              </span>
             </div>
-            <span className="font-bold text-lg">Learn-AI</span>
+            <span className="font-bold text-lg">Learn-Tech</span>
           </div>
         </Link>
       </SidebarHeader>
@@ -45,13 +50,14 @@ export function AppSidebar({ credits = 0 }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
-                const isActive = location === item.url || 
+                const isActive =
+                  location === item.url ||
                   (item.url !== "/" && location.startsWith(item.url));
-                
+
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
+                    <SidebarMenuButton
+                      asChild
                       isActive={isActive}
                       data-testid={`nav-${item.title.toLowerCase()}`}
                     >
