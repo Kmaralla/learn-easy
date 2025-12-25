@@ -589,8 +589,9 @@ All this runs in a secure sandbox - the code can't access anything outside its c
 
     this.topics = [
       { id: "ai-agents-fundamentals", title: "AI Agents Fundamentals", description: "Core concepts of AI agents", audience: "all", order: 1 },
-      { id: "ai-for-product-owners", title: "AI for Product Owners", description: "Strategic AI decisions", audience: "product-owner", order: 2 },
-      { id: "genai-for-developers", title: "GenAI for Developers", description: "Building with AI APIs", audience: "developer", order: 3 },
+      { id: "distributed-systems", title: "Distributed Systems", description: "SQL, NoSQL, and scalability", audience: "developer", order: 2 },
+      { id: "ai-for-product-owners", title: "AI for Product Owners", description: "Strategic AI decisions", audience: "product-owner", order: 3 },
+      { id: "genai-for-developers", title: "GenAI for Developers", description: "Building with AI APIs", audience: "developer", order: 4 },
     ];
     
     this.topicUnlockDates.set("ai-agents-fundamentals", new Date(0));
@@ -929,7 +930,223 @@ The naive version works in demos. The production version works at scale without 
       });
     });
 
+    const distributedSystemsLessons = [
+      {
+        topic: "SQL vs NoSQL",
+        difficulty: "beginner",
+        concept: {
+          title: "Choosing Between SQL and NoSQL",
+          content: `The database you choose shapes your entire system. Here's when to use each:
+
+SQL (Relational) databases:
+- Strong consistency and ACID transactions
+- Complex queries with JOINs
+- Structured data with relationships
+- Examples: PostgreSQL, MySQL
+
+NoSQL databases:
+- Flexible schemas
+- Horizontal scaling
+- High write throughput
+- Examples: MongoDB, DynamoDB, Redis
+
+THE KEY INSIGHT: It's not about which is "better" - it's about your access patterns. How will you read and write data? That determines everything.`,
+          keyTakeaway: "Choose your database based on access patterns: SQL for complex queries and transactions, NoSQL for scale and flexibility.",
+        },
+        example: {
+          title: "Real Decision: E-commerce Platform",
+          scenario: "Building an e-commerce platform that needs to handle product catalog, user orders, and real-time inventory.",
+          explanation: `PRODUCT CATALOG → NoSQL (MongoDB/DynamoDB)
+- Products have varying attributes (shoes have sizes, laptops have specs)
+- Read-heavy, needs caching
+- Flexible schema for different product types
+
+USER ORDERS → SQL (PostgreSQL)
+- Transactions must be ACID (no double-charging!)
+- Complex queries: "orders by user in date range"
+- Relationships: orders → items → products
+
+INVENTORY → Redis
+- Real-time stock counts
+- High write throughput (decrement on purchase)
+- Eventually consistent is OK for display
+
+VERDICT: Most real systems use MULTIPLE databases, each optimized for its use case.`,
+          realWorldApplication: "Amazon uses DynamoDB for catalog, Aurora for transactions, and ElastiCache for sessions - proving polyglot persistence is the norm at scale.",
+        },
+        question: {
+          scenario: "You're building a social media app with user profiles, posts, and a feed. Posts can have comments, likes, and shares.",
+          question: "Which database strategy makes the most sense?",
+          options: [
+            "Only SQL - social graphs need relationships",
+            "Only NoSQL - social apps need to scale",
+            "SQL for user accounts and transactions, NoSQL for posts and feeds",
+            "File-based storage for simplicity"
+          ],
+          correctIndex: 2,
+          explanation: "User accounts need ACID properties (password changes, email verification). But posts and feeds are read-heavy and need horizontal scaling. Facebook, Twitter, and Instagram all use polyglot persistence - SQL for critical user data, NoSQL for content and feeds.",
+          difficulty: "beginner",
+          creditsReward: 10,
+        },
+      },
+      {
+        topic: "CAP Theorem",
+        difficulty: "intermediate",
+        concept: {
+          title: "CAP Theorem: The Fundamental Trade-off",
+          content: `In distributed systems, you can only guarantee TWO of three properties:
+
+C - Consistency: Every read gets the most recent write
+A - Availability: Every request gets a response
+P - Partition Tolerance: System works despite network failures
+
+Since network partitions WILL happen, you're really choosing between:
+- CP: Consistent but may reject requests during partitions (banking)
+- AP: Available but may return stale data (social media feeds)
+
+This isn't a one-time choice - different parts of your system can make different trade-offs!`,
+          keyTakeaway: "CAP forces a choice: during network issues, do you want correct data (CP) or any response (AP)? Choose based on business impact.",
+        },
+        example: {
+          title: "CAP in Action: Banking vs Social Media",
+          scenario: "Compare how a bank and Twitter handle the same network partition.",
+          explanation: `BANK TRANSFER DURING PARTITION:
+Choosing CP (Consistency + Partition Tolerance)
+- User tries to transfer $500
+- System can't confirm account balance
+- RESULT: "Transaction temporarily unavailable"
+- WHY: Wrong balance could mean overdraft or lost money
+
+TWITTER DURING PARTITION:
+Choosing AP (Availability + Partition Tolerance)
+- User views their timeline
+- Some tweets might be slightly stale
+- RESULT: Shows cached timeline from 30 seconds ago
+- WHY: Stale tweets are fine, unavailable Twitter is not
+
+SAME TECHNOLOGY, DIFFERENT CHOICES:
+Even within one company, checkout is CP while product browsing is AP.`,
+          realWorldApplication: "DynamoDB offers both: strongly consistent reads (CP) or eventually consistent reads (AP) - you choose per-request based on what you're doing.",
+        },
+        question: {
+          scenario: "Your system has a leader election feature that decides which server handles writes. During a network partition, two servers both think they're the leader.",
+          question: "What is this problem called and how do you solve it?",
+          options: [
+            "Split brain - use consensus algorithms like Raft or require majority quorum",
+            "Race condition - add mutex locks",
+            "Deadlock - implement timeout mechanisms",
+            "Memory leak - restart the servers"
+          ],
+          correctIndex: 0,
+          explanation: "Split brain occurs when network partitions cause multiple nodes to assume leadership. Consensus algorithms like Raft and Paxos solve this by requiring a majority quorum - if you can't reach majority, you can't become leader. This is why distributed systems often have odd numbers of nodes.",
+          difficulty: "intermediate",
+          creditsReward: 15,
+        },
+      },
+      {
+        topic: "Scaling Patterns",
+        difficulty: "intermediate",
+        concept: {
+          title: "Horizontal vs Vertical Scaling",
+          content: `VERTICAL SCALING (Scale Up):
+- Bigger machine: more CPU, RAM, SSD
+- Simple but limited - can't scale infinitely
+- Good for: databases, monoliths in early stage
+
+HORIZONTAL SCALING (Scale Out):
+- More machines working together
+- Complex but unlimited potential
+- Requires: load balancing, state management, coordination
+
+THE REALITY: Most systems use both. Scale up until it's expensive, then scale out for critical paths.
+
+KEY PATTERNS:
+- Stateless services → easy to scale horizontally
+- Stateful services → harder, need sharding or replication
+- Databases → read replicas, sharding, or managed services`,
+          keyTakeaway: "Scale up for simplicity, scale out for growth. Make services stateless when possible - they're much easier to scale.",
+        },
+        example: {
+          title: "Scaling a Growing Startup",
+          scenario: "Your app went viral. You have 10x traffic and 2 seconds response time (was 200ms).",
+          explanation: `STAGE 1: QUICK WINS
+- Add Redis cache → 50% of requests never hit DB
+- Enable CDN → static assets served from edge
+- Result: 1 second response time
+
+STAGE 2: VERTICAL SCALE
+- Upgrade database: 4 cores → 16 cores
+- More RAM: 16GB → 64GB (more fits in memory)
+- Result: 400ms response time
+
+STAGE 3: HORIZONTAL SCALE
+- Add read replicas for database
+- Run 4 app servers behind load balancer
+- Result: 150ms response time, handles 50x original traffic
+
+STAGE 4: ARCHITECTURE CHANGES
+- Split monolith into services
+- Async processing with queues
+- Result: 100ms at any scale
+
+Each stage buys time. Don't over-engineer early!`,
+          realWorldApplication: "Shopify scaled from one server to handling millions of stores using this exact progression - caching first, then read replicas, then sharding.",
+        },
+        question: {
+          scenario: "Your database is the bottleneck. Reads are 10x more frequent than writes. Response times are degrading.",
+          question: "What's the most effective first step?",
+          options: [
+            "Immediately shard the database across multiple servers",
+            "Add read replicas and route read queries to them",
+            "Rewrite the application in a faster programming language",
+            "Switch from SQL to NoSQL"
+          ],
+          correctIndex: 1,
+          explanation: "Read replicas are the standard solution for read-heavy workloads. They're much simpler than sharding (which splits data) and don't require application changes for NoSQL migration. Most databases support replicas natively, and you can add them without downtime.",
+          difficulty: "intermediate",
+          creditsReward: 15,
+        },
+      },
+    ];
+
     lessonOffset += productOwnerLessons.length;
+    distributedSystemsLessons.forEach((lesson, idx) => {
+      const topicId = "distributed-systems";
+      const lessonIndex = lessonOffset + idx;
+      cards.push({
+        type: "concept",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 1,
+        concept: lesson.concept,
+      });
+      cards.push({
+        type: "example",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 2,
+        example: lesson.example,
+      });
+      cards.push({
+        type: "question",
+        topicId,
+        topic: lesson.topic,
+        difficulty: lesson.difficulty,
+        lessonIndex,
+        stepInLesson: 3,
+        question: {
+          id: randomUUID(),
+          lessonId: "",
+          ...lesson.question,
+        },
+      });
+    });
+
+    lessonOffset += distributedSystemsLessons.length;
     developerLessons.forEach((lesson, idx) => {
       const topicId = "genai-for-developers";
       const lessonIndex = lessonOffset + idx;
@@ -988,28 +1205,34 @@ The naive version works in demos. The production version works at scale without 
   }
 
   async getCurrentLearningCard(): Promise<LearningCard | null> {
-    if (this.currentCardIndex >= this.learningCards.length) {
-      return null;
-    }
-    
+    const now = new Date();
     const user = await this.getDefaultUser();
-    const card = this.learningCards[this.currentCardIndex];
     
-    if (card.difficulty === "advanced" && user.currentLevel === "beginner") {
-      const beginnerCards = this.learningCards.filter(c => c.difficulty === "beginner");
-      const nextBeginner = beginnerCards.find(c => !this.completedCardIds.has(c.id));
-      return nextBeginner || card;
-    }
-    
-    if (card.difficulty === "intermediate" && user.currentLevel === "beginner") {
-      if (user.totalCorrect < 3) {
-        const beginnerCards = this.learningCards.filter(c => c.difficulty === "beginner");
-        const nextBeginner = beginnerCards.find(c => !this.completedCardIds.has(c.id));
-        return nextBeginner || card;
+    for (let i = this.currentCardIndex; i < this.learningCards.length; i++) {
+      const card = this.learningCards[i];
+      
+      const topicUnlockDate = this.topicUnlockDates.get(card.topicId);
+      if (!topicUnlockDate || topicUnlockDate > now) {
+        continue;
       }
+      
+      if (this.completedCardIds.has(card.id)) {
+        continue;
+      }
+      
+      if (card.difficulty === "advanced" && user.currentLevel === "beginner") {
+        continue;
+      }
+      
+      if (card.difficulty === "intermediate" && user.currentLevel === "beginner" && user.totalCorrect < 3) {
+        continue;
+      }
+      
+      this.currentCardIndex = i;
+      return card;
     }
     
-    return card;
+    return null;
   }
 
   async advanceToNextCard(): Promise<void> {

@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw, BookOpen, Sparkles, User, Trophy, RefreshCw, Star } from "lucide-react";
+import { Zap, Flame, Target, ArrowRight, Check, X, Lightbulb, ChevronRight, RotateCcw, BookOpen, Sparkles, User, Trophy, RefreshCw, Star, Lock, Clock, Users, Code } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,17 @@ type DailyPlan = {
   reviewCount: number;
   missions: DailyMission[];
   allLessonsComplete: boolean;
+};
+
+type TopicInfo = {
+  id: string;
+  title: string;
+  description: string;
+  audience: "all" | "developer" | "product-owner";
+  lessonCount: number;
+  completedLessons: number;
+  isLocked: boolean;
+  unlocksAt: string | null;
 };
 
 type LearningData = {
@@ -80,6 +91,11 @@ export default function Dashboard() {
 
   const { data, isLoading, refetch } = useQuery<LearningData>({
     queryKey: ["/api/learn"],
+    enabled: !!userName,
+  });
+
+  const { data: topicsData } = useQuery<{ topics: TopicInfo[] }>({
+    queryKey: ["/api/topics"],
     enabled: !!userName,
   });
 
@@ -367,10 +383,91 @@ export default function Dashboard() {
                     </div>
                     <h2 className="text-xl font-bold mb-2">Great job, {userName}!</h2>
                     <p className="text-muted-foreground text-sm">
-                      You've completed all available lessons. Here's your daily plan:
+                      You've completed this topic. Check out what's coming next:
                     </p>
                   </CardContent>
                 </Card>
+
+                {topicsData && topicsData.topics.length > 0 && (
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                        <h3 className="font-semibold">Learning Topics</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {topicsData.topics.map((topic) => {
+                          const isComplete = topic.completedLessons >= topic.lessonCount;
+                          const audienceIcon = topic.audience === "developer" ? Code : 
+                                               topic.audience === "product-owner" ? Users : BookOpen;
+                          const AudienceIcon = audienceIcon;
+                          
+                          return (
+                            <div 
+                              key={topic.id}
+                              className={`p-4 rounded-md border ${
+                                topic.isLocked 
+                                  ? 'bg-muted/30 border-muted opacity-60' 
+                                  : isComplete 
+                                    ? 'bg-emerald-500/5 border-emerald-500/20'
+                                    : 'bg-background border-border'
+                              }`}
+                              data-testid={`topic-card-${topic.id}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className={`flex-shrink-0 w-10 h-10 rounded-md flex items-center justify-center ${
+                                    topic.isLocked ? 'bg-muted' :
+                                    isComplete ? 'bg-emerald-500/10' : 'bg-primary/10'
+                                  }`}>
+                                    {topic.isLocked ? (
+                                      <Lock className="h-5 w-5 text-muted-foreground" />
+                                    ) : isComplete ? (
+                                      <Check className="h-5 w-5 text-emerald-500" />
+                                    ) : (
+                                      <AudienceIcon className="h-5 w-5 text-primary" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-sm truncate">{topic.title}</span>
+                                      {topic.audience !== "all" && (
+                                        <Badge variant="outline" className="text-xs flex-shrink-0">
+                                          {topic.audience === "developer" ? "Dev" : "PM"}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground truncate">{topic.description}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  {topic.isLocked ? (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Clock className="h-3 w-3" />
+                                      <span>Unlocks tomorrow</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">
+                                      {topic.completedLessons}/{topic.lessonCount} lessons
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {!topic.isLocked && !isComplete && (
+                                <div className="mt-3">
+                                  <Progress 
+                                    value={(topic.completedLessons / topic.lessonCount) * 100} 
+                                    className="h-1.5" 
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {data.dailyPlan && data.dailyPlan.missions.length > 0 && (
                   <Card>
