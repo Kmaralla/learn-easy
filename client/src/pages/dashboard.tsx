@@ -49,6 +49,7 @@ type LearningData = {
   currentCard: {
     id: string;
     type: "concept" | "example" | "question";
+    topicId: string;
     topic: string;
     difficulty: string;
     lessonIndex: number;
@@ -842,6 +843,106 @@ export default function Dashboard() {
               </motion.div>
             ) : null}
           </AnimatePresence>
+          
+          {/* Browse Topics Section - Always Visible */}
+          {topicsData && topicsData.topics.length > 0 && currentCard && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="mt-8"
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Browse Topics</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {topicsData.topics.map((topic) => {
+                      const isComplete = topic.completedLessons >= topic.lessonCount;
+                      const audienceIcon = topic.audience === "developer" ? Code : 
+                                           topic.audience === "product-owner" ? Users : BookOpen;
+                      const AudienceIcon = audienceIcon;
+                      const isCurrent = currentCard?.topicId === topic.id;
+                      
+                      return (
+                        <div 
+                          key={topic.id} 
+                          className={`p-4 rounded-md border ${
+                            topic.isLocked 
+                              ? 'opacity-60 bg-muted/30' 
+                              : isCurrent 
+                                ? 'border-primary/50 bg-primary/5'
+                                : isComplete 
+                                  ? 'bg-emerald-500/5 border-emerald-500/30' 
+                                  : 'hover-elevate'
+                          }`}
+                          data-testid={`topic-card-${topic.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className={`p-2 rounded-md shrink-0 ${
+                                topic.isLocked 
+                                  ? 'bg-muted' 
+                                  : isComplete 
+                                    ? 'bg-emerald-500/10' 
+                                    : 'bg-primary/10'
+                              }`}>
+                                {topic.isLocked ? (
+                                  <Lock className="h-4 w-4 text-muted-foreground" />
+                                ) : isComplete ? (
+                                  <Check className="h-4 w-4 text-emerald-500" />
+                                ) : (
+                                  <BookOpen className="h-4 w-4 text-primary" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-sm">{topic.title}</span>
+                                  <Badge variant="outline" className="text-xs capitalize">
+                                    <AudienceIcon className="h-3 w-3 mr-1" />
+                                    {topic.audience === "product-owner" ? "Product" : 
+                                     topic.audience === "developer" ? "Dev" : "All"}
+                                  </Badge>
+                                  {isCurrent && (
+                                    <Badge className="text-xs bg-primary/10 text-primary border-primary/30">
+                                      Current
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate">{topic.description}</p>
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              {topic.isLocked ? (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  <span>Unlocks tomorrow</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  {topic.completedLessons}/{topic.lessonCount} lessons
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {!topic.isLocked && !isComplete && (
+                            <div className="mt-3">
+                              <Progress 
+                                value={(topic.completedLessons / topic.lessonCount) * 100} 
+                                className="h-1.5"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
         </div>
       </div>
     </div>
