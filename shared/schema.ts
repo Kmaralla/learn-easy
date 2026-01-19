@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   totalCorrect: integer("total_correct").notNull().default(0),
   totalAnswered: integer("total_answered").notNull().default(0),
   currentLevel: text("current_level").notNull().default("beginner"),
+  startDate: timestamp("start_date").defaultNow(), // When user started learning (for day-based unlocking)
 });
 
 export const adminUsers = pgTable("admin_users", {
@@ -35,6 +36,7 @@ export const topics = pgTable("topics", {
   description: text("description"),
   order: integer("order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  unlockDay: integer("unlock_day").notNull().default(1), // Day when topic unlocks (1 = Day 1, 2 = Day 2, etc.)
 });
 
 export const concepts = pgTable("concepts", {
@@ -98,6 +100,20 @@ export const userProgress = pgTable("user_progress", {
   completed: boolean("completed").notNull().default(false),
   correctAnswers: integer("correct_answers").notNull().default(0),
   totalQuestions: integer("total_questions").notNull().default(0),
+});
+
+export const userTopicProgress = pgTable("user_topic_progress", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  topicId: varchar("topic_id", { length: 36 }).notNull(),
+  expertiseLevel: text("expertise_level").notNull().default("beginner"),
+  completionPercentage: integer("completion_percentage").notNull().default(0),
+  totalLessons: integer("total_lessons").notNull().default(0),
+  completedLessons: integer("completed_lessons").notNull().default(0),
+  totalCorrect: integer("total_correct").notNull().default(0),
+  totalAnswered: integer("total_answered").notNull().default(0),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });

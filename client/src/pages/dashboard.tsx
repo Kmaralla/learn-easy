@@ -62,6 +62,8 @@ type TopicInfo = {
   completedLessons: number;
   isLocked: boolean;
   unlocksAt: string | null;
+  unlocksOnDay?: number;
+  unlockDate?: string | null;
 };
 
 type LearningData = {
@@ -229,11 +231,11 @@ export default function Dashboard() {
 
   if (!userName) {
     return (
-      <div className="min-h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/10">
         <div className="flex-1 flex items-center justify-center px-4 py-8">
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+            <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent/15 rounded-full blur-3xl animate-pulse delay-1000" />
           </div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -544,9 +546,19 @@ export default function Dashboard() {
                                 </div>
                                 <div className="text-right flex-shrink-0">
                                   {topic.isLocked ? (
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                      <Clock className="h-3 w-3" />
-                                      <span>Unlocks tomorrow</span>
+                                    <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
+                                      <div className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        <span>Day {topic.unlocksOnDay || "?"}</span>
+                                      </div>
+                                      {topic.unlockDate && (
+                                        <span className="text-[10px]">
+                                          {new Date(topic.unlockDate).toLocaleDateString('en-US', { 
+                                            month: 'short', 
+                                            day: 'numeric' 
+                                          })}
+                                        </span>
+                                      )}
                                     </div>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">
@@ -1100,9 +1112,19 @@ export default function Dashboard() {
                             </div>
                             <div className="text-right flex-shrink-0">
                               {topic.isLocked ? (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Clock className="h-3 w-3" />
-                                  <span>Unlocks tomorrow</span>
+                                <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span>Day {topic.unlocksOnDay || "?"}</span>
+                                  </div>
+                                  {topic.unlockDate && (
+                                    <span className="text-[10px]">
+                                      {new Date(topic.unlockDate).toLocaleDateString('en-US', { 
+                                        month: 'short', 
+                                        day: 'numeric' 
+                                      })}
+                                    </span>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">

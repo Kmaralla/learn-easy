@@ -2,14 +2,33 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { registerAdminRoutes } from "./admin-routes";
+import { registerAuthRoutes, requireAuth } from "./auth-routes";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
+  // Health check endpoint (for load balancer)
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "healthy", timestamp: new Date().toISOString() });
+  });
+  
+  // Register authentication routes first
+  registerAuthRoutes(app);
+  
+  // Helper to get current user (with fallback for backward compatibility)
+  async function getCurrentUser(req: any) {
+    if (req.session?.userId) {
+      const user = await storage.getUser(req.session.userId);
+      if (user) return user;
+    }
+    // Fallback to default user for backward compatibility
+    return await (storage as any).getDefaultUser();
+  }
+
   app.get("/api/user/credits", async (req, res) => {
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     res.json({ credits: user.credits });
   });
 
@@ -18,13 +37,19 @@ export async function registerRoutes(
     if (!username || typeof username !== "string") {
       return res.status(400).json({ error: "Username is required" });
     }
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     await (storage as any).updateUsername(user.id, username.trim());
+    
+    // Update session if exists
+    if (req.session) {
+      req.session.username = username.trim();
+    }
+    
     res.json({ success: true });
   });
 
   app.get("/api/learn", async (req, res) => {
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     const isInReviewMode = await (storage as any).getIsInReviewMode();
     
     let currentCard;
@@ -60,7 +85,23 @@ export async function registerRoutes(
   });
 
   app.get("/api/topics", async (req, res) => {
-    const topics = await (storage as any).getTopics();
+    const user = await getCurrentUser(req);
+    
+    // Use new topic unlock logic
+    const { getTopicsWithUnlockStatus, getTopicUnlockDate } = await import("./topic-unlock");
+    const topicsWithStatus = await getTopicsWithUnlockStatus(user);
+    
+    // Format for frontend
+    const topics = topicsWithStatus.map(topic => ({
+      id: topic.id,
+      title: topic.title,
+      description: topic.description,
+      order: topic.order,
+      isLocked: topic.isLocked,
+      unlocksOnDay: topic.unlocksOnDay,
+      unlockDate: topic.isLocked ? getTopicUnlockDate(user, topic.unlocksOnDay) : null,
+    }));
+    
     res.json({ topics });
   });
 
@@ -80,7 +121,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/dashboard", async (req, res) => {
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     const modules = await storage.getModules();
     const completedLessonIds = await storage.getCompletedLessonIds();
     
@@ -180,7 +221,7 @@ export async function registerRoutes(
   app.post("/api/answer", async (req, res) => {
     const { questionId, isCorrect, creditsEarned, lessonIndex } = req.body;
     
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     await storage.updateUserStats(user.id, isCorrect);
     
     await (storage as any).recordAnswer(questionId, lessonIndex || 0, isCorrect);
@@ -213,14 +254,14 @@ export async function registerRoutes(
 
     await storage.completeLesson(lessonId, lesson.moduleId, correctAnswers, totalQuestions);
 
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     await storage.updateUserStreak(user.id, user.streak + 1);
 
     res.json({ success: true });
   });
 
   app.get("/api/progress", async (req, res) => {
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     const modules = await storage.getModules();
     const completedLessonIds = await storage.getCompletedLessonIds();
     
@@ -254,7 +295,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/profile", async (req, res) => {
-    const user = await (storage as any).getDefaultUser();
+    const user = await getCurrentUser(req);
     const modules = await storage.getModules();
     const completedLessonIds = await storage.getCompletedLessonIds();
     

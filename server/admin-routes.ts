@@ -4,10 +4,14 @@ import { contentSources, topics, concepts, conceptQuestions, adminUsers } from "
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import * as bcrypt from "bcryptjs";
+import { registerContentIngestionRoutes } from "./content-ingestion";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 export function registerAdminRoutes(app: Express) {
+  // Register content ingestion routes
+  registerContentIngestionRoutes(app);
+
   app.post("/api/admin/login", async (req, res) => {
     const { password } = req.body;
     if (password === ADMIN_PASSWORD) {
@@ -46,7 +50,7 @@ export function registerAdminRoutes(app: Express) {
   });
 
   app.post("/api/admin/topics", async (req, res) => {
-    const { title, description, sourceId } = req.body;
+    const { title, description, sourceId, unlockDay } = req.body;
     const id = randomUUID();
     const maxOrder = await db.select().from(topics);
     await db.insert(topics).values({
@@ -56,14 +60,19 @@ export function registerAdminRoutes(app: Express) {
       sourceId,
       order: maxOrder.length,
       isActive: true,
+      unlockDay: unlockDay || 1, // Default to Day 1 if not specified
     });
-    res.json({ id, title, description, sourceId });
+    res.json({ id, title, description, sourceId, unlockDay: unlockDay || 1 });
   });
 
   app.put("/api/admin/topics/:id", async (req, res) => {
-    const { title, description, isActive } = req.body;
+    const { title, description, isActive, unlockDay } = req.body;
+    const updateData: any = { title, description, isActive };
+    if (unlockDay !== undefined) {
+      updateData.unlockDay = unlockDay;
+    }
     await db.update(topics)
-      .set({ title, description, isActive })
+      .set(updateData)
       .where(eq(topics.id, req.params.id));
     res.json({ success: true });
   });

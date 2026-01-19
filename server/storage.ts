@@ -2,6 +2,7 @@ import type {
   User, InsertUser, Module, Lesson, Question, UserProgress 
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { DatabaseStorage } from "./db-storage";
 
 type LearningCard = {
   id: string;
@@ -1674,4 +1675,141 @@ Each stage buys time. Don't over-engineer early!`,
   }
 }
 
-export const storage = new MemStorage();
+// Use DatabaseStorage for persistent data, MemStorage for learning card logic
+// TODO: Migrate learning card logic to database
+// This is a hybrid approach during migration
+class HybridStorage extends MemStorage {
+  private dbStorage: DatabaseStorage;
+
+  constructor() {
+    super();
+    this.dbStorage = new DatabaseStorage();
+  }
+
+  // Override core IStorage methods to use database
+  async getUser(id: string): Promise<User | undefined> {
+    return this.dbStorage.getUser(id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return this.dbStorage.getUserByUsername(username);
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    return this.dbStorage.createUser(user);
+  }
+
+  async updateUserCredits(id: string, credits: number): Promise<void> {
+    await this.dbStorage.updateUserCredits(id, credits);
+    // Sync to in-memory for learning card logic compatibility
+    const user = await this.dbStorage.getUser(id);
+    if (user) {
+      const memUser = this.users.get(id);
+      if (memUser) {
+        memUser.credits = user.credits;
+      }
+    }
+  }
+
+  async updateUserStats(id: string, correct: boolean): Promise<void> {
+    await this.dbStorage.updateUserStats(id, correct);
+    // Sync to in-memory
+    const user = await this.dbStorage.getUser(id);
+    if (user) {
+      const memUser = this.users.get(id);
+      if (memUser) {
+        memUser.totalAnswered = user.totalAnswered;
+        memUser.totalCorrect = user.totalCorrect;
+      }
+    }
+  }
+
+  async updateUserLevel(id: string, level: string): Promise<void> {
+    await this.dbStorage.updateUserLevel(id, level);
+    // Sync to in-memory
+    const user = await this.dbStorage.getUser(id);
+    if (user) {
+      const memUser = this.users.get(id);
+      if (memUser) {
+        memUser.currentLevel = user.currentLevel;
+      }
+    }
+  }
+
+  async updateUserStreak(id: string, streak: number): Promise<void> {
+    await this.dbStorage.updateUserStreak(id, streak);
+    // Sync to in-memory
+    const user = await this.dbStorage.getUser(id);
+    if (user) {
+      const memUser = this.users.get(id);
+      if (memUser) {
+        memUser.streak = user.streak;
+      }
+    }
+  }
+
+  async getModules(): Promise<Module[]> {
+    return this.dbStorage.getModules();
+  }
+
+  async getModule(id: string): Promise<Module | undefined> {
+    return this.dbStorage.getModule(id);
+  }
+
+  async getLessons(moduleId: string): Promise<Lesson[]> {
+    return this.dbStorage.getLessons(moduleId);
+  }
+
+  async getLesson(id: string): Promise<Lesson | undefined> {
+    return this.dbStorage.getLesson(id);
+  }
+
+  async getQuestions(lessonId: string): Promise<Question[]> {
+    return this.dbStorage.getQuestions(lessonId);
+  }
+
+  async getQuestion(id: string): Promise<Question | undefined> {
+    return this.dbStorage.getQuestion(id);
+  }
+
+  async getUserProgress(lessonId: string): Promise<UserProgress | undefined> {
+    return this.dbStorage.getUserProgress(lessonId);
+  }
+
+  async completeLesson(
+    lessonId: string,
+    moduleId: string,
+    correctAnswers: number,
+    totalQuestions: number
+  ): Promise<void> {
+    await this.dbStorage.completeLesson(lessonId, moduleId, correctAnswers, totalQuestions);
+    // Also update in-memory for compatibility
+    await super.completeLesson(lessonId, moduleId, correctAnswers, totalQuestions);
+  }
+
+  async getCompletedLessonIds(): Promise<string[]> {
+    return this.dbStorage.getCompletedLessonIds();
+  }
+
+  async getDefaultUser(): Promise<User> {
+    const user = await this.dbStorage.getDefaultUser();
+    // Sync to in-memory for learning card logic
+    this.users.set(user.id, user);
+    this.defaultUserId = user.id;
+    return user;
+  }
+
+  async updateUsername(id: string, username: string): Promise<void> {
+    await this.dbStorage.updateUsername(id, username);
+    // Sync to in-memory
+    const user = await this.dbStorage.getUser(id);
+    if (user) {
+      const memUser = this.users.get(id);
+      if (memUser) {
+        memUser.username = user.username;
+      }
+    }
+  }
+}
+
+export const storage = new HybridStorage();
